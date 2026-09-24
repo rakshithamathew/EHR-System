@@ -10,5 +10,5 @@ async def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
-api_router.include_router(ehr.router, prefix="/ehr", tags=["ehr"])
-api_router.include_router(patients.router, prefix="/patients", tags=["patients"])
+api_router.include_router(ehr.router, tags=["ehr"])
+api_router.include_router(patients.router, tags=["patients"])

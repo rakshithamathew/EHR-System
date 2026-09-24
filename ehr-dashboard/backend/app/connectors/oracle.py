@@ -15,8 +15,12 @@ class OracleConnector(FHIRConnector):
         timeout: float | httpx.Timeout = 30.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
+        configured_base_url = base_url or settings.oracle_fhir_base_url
+        if not configured_base_url:
+            raise ValueError("ORACLE_FHIR_BASE_URL must be configured")
+
         super().__init__(
-            base_url=base_url or settings.oracle_fhir_base_url,
+            base_url=configured_base_url,
             timeout=timeout,
             client=client,
         )

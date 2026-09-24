@@ -43,11 +43,11 @@ On Windows PowerShell, activate the virtual environment with `.venv\Scripts\Acti
 
 Set `DATABASE_URL` in `backend/.env` before running Alembic commands. The URL should use SQLAlchemy's psycopg dialect, for example `postgresql+psycopg://user:password@localhost:5432/ehr_dashboard`.
 
-Set `FRONTEND_URL` to the frontend origin allowed by CORS. The default development value is `http://localhost:5173`.
+Set `FRONTEND_URL` to the frontend origin allowed by CORS.
 
-Set `HAPI_FHIR_BASE_URL` to the HAPI FHIR R4 endpoint. The example environment targets the public HAPI test server.
+Set `HAPI_FHIR_BASE_URL` to the HAPI FHIR R4 endpoint.
 
-Set `ORACLE_FHIR_BASE_URL` to the Oracle Health FHIR R4 endpoint. The example environment targets Oracle Health's public, read-only sandbox.
+Set `ORACLE_FHIR_BASE_URL` to the Oracle Health FHIR R4 endpoint.
 
 Epic settings are included as empty placeholders. Epic resource access remains disabled until SMART on FHIR OAuth authorization is implemented.
 
@@ -59,4 +59,4 @@ The backend health check is available at `GET /api/health`.
 
 ## Deployment
 
-The projects are kept independent. The backend includes a minimal `vercel.json`; configure the backend directory as the Vercel project root when deploying it separately.
+The projects are kept independent. The backend includes a minimal `vercel.json`; configure the backend directory as the Vercel project root when deploying it separately. See `backend/README.md` for local and deployment instructions.
