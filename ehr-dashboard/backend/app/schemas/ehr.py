@@ -18,3 +18,10 @@ class EHRSourceResponse(BaseModel):
     name: str
     enabled: bool
     last_sync: LastSyncResponse | None = None
+
+
+class SourceResponse(BaseModel):
+    id: str
+    label: str
+    enabled: bool
+    last_sync: LastSyncResponse | None = None

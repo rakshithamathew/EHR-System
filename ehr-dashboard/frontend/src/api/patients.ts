@@ -2,41 +2,29 @@ import axios from "axios";
 
 import { apiClient } from "./client";
 import { getEpicLoginUrl } from "./ehr";
-import type {
-  PatientDetails,
-  PatientPage,
-  PatientSummary,
-} from "../types/patient";
-
-interface FhirPatientSummary {
-  id: string;
-  name: string | null;
-  gender: string | null;
-  birthDate: string | null;
-}
-
-interface FhirPatientPage {
-  items: FhirPatientSummary[];
-  page: number;
-  has_next: boolean;
-}
+import type { PatientDetails, PatientPage } from "../types/patient";
 
 interface ApiErrorResponse {
-  detail?: string;
   error?: string;
+  detail?: string;
 }
 
-function redirectForEpicAuthorization(error: unknown, source?: string): boolean {
-  if (
-    source === "epic" &&
-    axios.isAxiosError<ApiErrorResponse>(error) &&
-    error.response?.status === 401 &&
-    error.response.data?.error === "epic_auth_required"
-  ) {
-    window.location.assign(getEpicLoginUrl());
-    return true;
+function readableApiError(error: unknown, source?: string): never {
+  if (axios.isAxiosError<ApiErrorResponse>(error)) {
+    if (
+      source === "epic" &&
+      error.response?.status === 401 &&
+      error.response.data?.error === "epic_auth_required"
+    ) {
+      window.location.assign(getEpicLoginUrl());
+      throw new Error("Redirecting to Epic authorization");
+    }
+    const detail = error.response?.data?.detail;
+    if (detail) {
+      throw new Error(detail);
+    }
   }
-  return false;
+  throw error;
 }
 
 export async function getPatients(
@@ -46,40 +34,17 @@ export async function getPatients(
   page = 1,
 ): Promise<PatientPage> {
   try {
-    const response = await apiClient.get<FhirPatientPage>("/api/patients", {
+    const response = await apiClient.get<PatientPage>("/api/patients", {
       params: {
         source,
         search: search?.trim() || undefined,
         limit,
         page,
       },
-      timeout: 15_000,
     });
-    return {
-      items: response.data.items.map((patient): PatientSummary => ({
-        id: patient.id,
-        source,
-        external_id: patient.id,
-        name: patient.name,
-        given_name: null,
-        family_name: null,
-        gender: patient.gender,
-        birth_date: patient.birthDate,
-      })),
-      page: response.data.page,
-      has_next: response.data.has_next,
-    };
+    return response.data;
   } catch (error) {
-    if (redirectForEpicAuthorization(error, source)) {
-      return await new Promise<PatientPage>(() => undefined);
-    }
-    if (axios.isAxiosError<ApiErrorResponse>(error)) {
-      const detail = error.response?.data?.detail;
-      if (detail) {
-        throw new Error(detail);
-      }
-    }
-    throw error;
+    return readableApiError(error, source);
   }
 }
 
@@ -94,15 +59,6 @@ export async function getPatient(
     );
     return response.data;
   } catch (error) {
-    if (redirectForEpicAuthorization(error, source)) {
-      return await new Promise<PatientDetails>(() => undefined);
-    }
-    if (axios.isAxiosError<ApiErrorResponse>(error)) {
-      const detail = error.response?.data?.detail;
-      if (detail) {
-        throw new Error(detail);
-      }
-    }
-    throw error;
+    return readableApiError(error, source);
   }
 }

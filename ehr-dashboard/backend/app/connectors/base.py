@@ -1,5 +1,7 @@
+import asyncio
 from abc import ABC, abstractmethod
 from collections.abc import Mapping
+from collections import deque
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any
@@ -17,6 +19,34 @@ from app.utils.fhir import (
 
 _RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 504})
 _MAX_ATTEMPTS = 4
+_MAX_REQUESTS_PER_SECOND = 5
+
+
+class AsyncRateLimiter:
+    """Sliding-window limiter shared by every request from one connector."""
+
+    def __init__(self, requests_per_second: int) -> None:
+        if requests_per_second < 1:
+            raise ValueError("requests_per_second must be at least 1")
+        self.requests_per_second = requests_per_second
+        self._timestamps: deque[float] = deque()
+        self._lock = asyncio.Lock()
+
+    async def acquire(self) -> None:
+        loop = asyncio.get_running_loop()
+        while True:
+            async with self._lock:
+                now = loop.time()
+                while self._timestamps and now - self._timestamps[0] >= 1.0:
+                    self._timestamps.popleft()
+
+                if len(self._timestamps) < self.requests_per_second:
+                    self._timestamps.append(now)
+                    return
+
+                delay = 1.0 - (now - self._timestamps[0])
+
+            await asyncio.sleep(max(delay, 0.0))
 
 
 def _is_retryable_error(exception: BaseException) -> bool:
@@ -75,6 +105,7 @@ class FHIRConnector(ABC):
         *,
         timeout: float | httpx.Timeout = 30.0,
         max_attempts: int = _MAX_ATTEMPTS,
+        requests_per_second: int = _MAX_REQUESTS_PER_SECOND,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         if not base_url.strip():
@@ -87,6 +118,7 @@ class FHIRConnector(ABC):
             timeout if isinstance(timeout, httpx.Timeout) else httpx.Timeout(timeout)
         )
         self.max_attempts = max_attempts
+        self._rate_limiter = AsyncRateLimiter(requests_per_second)
         self._client = client
         self._owns_client = client is None
 
@@ -140,6 +172,7 @@ class FHIRConnector(ABC):
             reraise=True,
         ):
             with attempt:
+                await self._rate_limiter.acquire()
                 response = await self._get_client().get(
                     self._build_url(path),
                     params=params,

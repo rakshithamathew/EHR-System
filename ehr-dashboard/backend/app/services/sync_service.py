@@ -1,8 +1,15 @@
 import asyncio
-from typing import TypedDict
+import logging
+from typing import NotRequired, TypedDict
 from uuid import UUID
 
+import httpx
+
 from app.connectors.base import FHIRConnector
+from app.connectors.epic import (
+    EpicAuthorizationRequiredError,
+    EpicFHIRConnector,
+)
 from app.connectors.hapi import HAPIConnector
 from app.connectors.oracle import OracleConnector
 from app.core.config import settings
@@ -18,6 +25,7 @@ from app.utils.fhir import (
 )
 
 MAX_CONCURRENT_PATIENT_REQUESTS = 5
+logger = logging.getLogger(__name__)
 
 
 class SyncResult(TypedDict):
@@ -26,6 +34,7 @@ class SyncResult(TypedDict):
     patients_processed: int
     conditions_processed: int
     medications_processed: int
+    error_message: NotRequired[str]
 
 
 class EHRSourceNotFoundError(LookupError):
@@ -95,11 +104,30 @@ class SyncService:
         return sources
 
     @staticmethod
-    def _create_connector(source: EHRSource) -> FHIRConnector:
+    def _create_connector(
+        source: EHRSource,
+        *,
+        access_token: str | None = None,
+        epic_patient_id: str | None = None,
+    ) -> FHIRConnector:
+        connector_options = {
+            "timeout": httpx.Timeout(15.0, connect=5.0),
+            "max_attempts": 4,
+        }
         if source.code == "hapi":
-            return HAPIConnector()
+            return HAPIConnector(**connector_options)
         if source.code == "oracle":
-            return OracleConnector()
+            return OracleConnector(**connector_options)
+        if source.code == "epic":
+            if not access_token:
+                raise EpicAuthorizationRequiredError(
+                    "Epic authentication is required"
+                )
+            return EpicFHIRConnector(
+                access_token=access_token,
+                patient_id=epic_patient_id,
+                **connector_options,
+            )
 
         raise UnsupportedEHRSourceError(
             f"EHR source '{source.code}' is not supported"
@@ -111,11 +139,39 @@ class SyncService:
         patient_external_id: str,
         semaphore: asyncio.Semaphore,
     ) -> tuple[list[FHIRResource], list[FHIRResource]]:
-        async with semaphore:
-            conditions = await connector.get_conditions(patient_external_id)
+        async def fetch(
+            resource_type: str,
+        ) -> list[FHIRResource]:
+            try:
+                async with semaphore:
+                    if resource_type == "Condition":
+                        return await connector.get_conditions(patient_external_id)
+                    return await connector.get_medications(patient_external_id)
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code == 401:
+                    raise EpicAuthorizationRequiredError(
+                        "Epic access token is missing or expired"
+                    ) from exc
+                logger.warning(
+                    "Skipping %s for patient %s after retries: %s",
+                    resource_type,
+                    patient_external_id,
+                    exc,
+                )
+                return []
+            except (httpx.HTTPError, ValueError) as exc:
+                logger.warning(
+                    "Skipping %s for patient %s after retries: %s",
+                    resource_type,
+                    patient_external_id,
+                    exc,
+                )
+                return []
 
-        async with semaphore:
-            medications = await connector.get_medications(patient_external_id)
+        conditions, medications = await asyncio.gather(
+            fetch("Condition"),
+            fetch("MedicationRequest"),
+        )
 
         return conditions, medications
 
@@ -152,24 +208,39 @@ class SyncService:
         patients_processed: int,
         conditions_processed: int,
         medications_processed: int,
+        error_message: str | None = None,
     ) -> SyncResult:
-        return {
+        result: SyncResult = {
             "source": source_code,
             "status": status,
             "patients_processed": patients_processed,
             "conditions_processed": conditions_processed,
             "medications_processed": medications_processed,
         }
+        if error_message:
+            result["error_message"] = error_message
+        return result
 
-    async def sync_ehr(self, source_code: str) -> SyncResult:
+    async def sync_ehr(
+        self,
+        source_code: str,
+        *,
+        access_token: str | None = None,
+        epic_patient_id: str | None = None,
+    ) -> SyncResult:
         normalized_source_code = source_code.strip().lower()
+        logger.info("Starting %s FHIR synchronization", normalized_source_code)
         source = self.sync_repository.get_ehr_source_by_code(normalized_source_code)
         if source is None:
             raise EHRSourceNotFoundError(
                 f"EHR source '{normalized_source_code}' was not found"
             )
 
-        connector = self._create_connector(source)
+        connector = self._create_connector(
+            source,
+            access_token=access_token,
+            epic_patient_id=epic_patient_id,
+        )
         sync_run = self.sync_repository.create_sync_run(source.id)
         sync_run_id = sync_run.id
         self.sync_repository.commit()
@@ -180,14 +251,24 @@ class SyncService:
 
         try:
             async with connector:
+                logger.info("Fetching %s Patient bundles", source.code)
                 raw_patients = await connector.get_patients()
+                logger.info(
+                    "Fetched %d %s Patient resources",
+                    len(raw_patients),
+                    source.code,
+                )
                 persisted_patients: list[tuple[UUID, str]] = []
+                seen_patient_ids: set[str] = set()
 
                 for raw_patient in raw_patients:
                     patient = normalize_patient(raw_patient)
                     external_id = patient["external_id"]
                     if external_id is None:
                         raise ValueError("Patient resource is missing its external id")
+                    if external_id in seen_patient_ids:
+                        continue
+                    seen_patient_ids.add(external_id)
 
                     persisted_patient = self.patient_repository.upsert_patient(
                         source.id,
@@ -196,10 +277,16 @@ class SyncService:
                     persisted_patients.append((persisted_patient.id, external_id))
                     patients_processed += 1
 
+                logger.info(
+                    "Fetching Condition and MedicationRequest resources for %d patients",
+                    len(persisted_patients),
+                )
                 related_resources = await self._fetch_all_patient_resources(
                     connector,
                     persisted_patients,
                 )
+                seen_condition_ids: set[str] = set()
+                seen_medication_ids: set[str] = set()
 
                 for (patient_id, _), (raw_conditions, raw_medications) in zip(
                     persisted_patients,
@@ -207,18 +294,36 @@ class SyncService:
                     strict=True,
                 ):
                     for raw_condition in raw_conditions:
+                        condition = normalize_condition(raw_condition)
+                        condition_id = condition["external_id"]
+                        if condition_id is None:
+                            raise ValueError(
+                                "Condition resource is missing its external id"
+                            )
+                        if condition_id in seen_condition_ids:
+                            continue
+                        seen_condition_ids.add(condition_id)
                         self.patient_repository.upsert_condition(
                             source.id,
                             patient_id,
-                            normalize_condition(raw_condition),
+                            condition,
                         )
                         conditions_processed += 1
 
                     for raw_medication in raw_medications:
+                        medication = normalize_medication_request(raw_medication)
+                        medication_id = medication["external_id"]
+                        if medication_id is None:
+                            raise ValueError(
+                                "MedicationRequest resource is missing its external id"
+                            )
+                        if medication_id in seen_medication_ids:
+                            continue
+                        seen_medication_ids.add(medication_id)
                         self.patient_repository.upsert_medication(
                             source.id,
                             patient_id,
-                            normalize_medication_request(raw_medication),
+                            medication,
                         )
                         medications_processed += 1
 
@@ -229,6 +334,13 @@ class SyncService:
                 medications_processed=medications_processed,
             )
             self.sync_repository.commit()
+            logger.info(
+                "Completed %s sync: patients=%d conditions=%d medications=%d",
+                source.code,
+                patients_processed,
+                conditions_processed,
+                medications_processed,
+            )
             return self._result(
                 source.code,
                 "completed",
@@ -236,7 +348,33 @@ class SyncService:
                 conditions_processed,
                 medications_processed,
             )
-        except Exception as exc:
+        except EpicAuthorizationRequiredError as exc:
+            logger.warning("Epic authorization expired during synchronization")
+            self.sync_repository.rollback()
+            self.sync_repository.mark_failed(
+                sync_run_id,
+                patients_processed=patients_processed,
+                conditions_processed=conditions_processed,
+                medications_processed=medications_processed,
+                error_message=f"{type(exc).__name__}: {exc}",
+            )
+            self.sync_repository.commit()
+            raise
+        except httpx.HTTPStatusError as exc:
+            if source.code == "epic" and exc.response.status_code == 401:
+                self.sync_repository.rollback()
+                self.sync_repository.mark_failed(
+                    sync_run_id,
+                    patients_processed=patients_processed,
+                    conditions_processed=conditions_processed,
+                    medications_processed=medications_processed,
+                    error_message="Epic access token is missing or expired",
+                )
+                self.sync_repository.commit()
+                raise EpicAuthorizationRequiredError(
+                    "Epic access token is missing or expired"
+                ) from exc
+            logger.exception("%s FHIR synchronization failed", source.code)
             self.sync_repository.rollback()
             self.sync_repository.mark_failed(
                 sync_run_id,
@@ -252,4 +390,24 @@ class SyncService:
                 patients_processed,
                 conditions_processed,
                 medications_processed,
+                f"{source.name} sync failed: {exc}",
+            )
+        except Exception as exc:
+            logger.exception("%s FHIR synchronization failed", source.code)
+            self.sync_repository.rollback()
+            self.sync_repository.mark_failed(
+                sync_run_id,
+                patients_processed=patients_processed,
+                conditions_processed=conditions_processed,
+                medications_processed=medications_processed,
+                error_message=f"{type(exc).__name__}: {exc}",
+            )
+            self.sync_repository.commit()
+            return self._result(
+                source.code,
+                "failed",
+                patients_processed,
+                conditions_processed,
+                medications_processed,
+                f"{source.name} sync failed: {exc}",
             )

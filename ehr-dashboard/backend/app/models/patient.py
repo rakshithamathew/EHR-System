@@ -35,6 +35,11 @@ class Patient(Base):
     gender: Mapped[str | None] = mapped_column(String(50))
     birth_date: Mapped[date | None] = mapped_column(Date)
     raw_resource: Mapped[dict[str, Any]] = mapped_column(JSONB, nullable=False)
+    last_synced_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,

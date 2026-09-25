@@ -7,6 +7,9 @@ export interface PatientSummary {
   family_name: string | null;
   gender: string | null;
   birth_date: string | null;
+  condition_count: number;
+  medication_count: number;
+  last_synced_at: string | null;
 }
 
 export interface Patient extends PatientSummary {}

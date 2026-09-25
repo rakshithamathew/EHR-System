@@ -40,7 +40,7 @@ class OracleConnector(FHIRConnector):
         return await self._get_paginated(
             "Patient",
             params={
-                "_count": 20,
+                "_count": 5,
                 "name": DEFAULT_ORACLE_PATIENT_SEARCH,
             },
         )

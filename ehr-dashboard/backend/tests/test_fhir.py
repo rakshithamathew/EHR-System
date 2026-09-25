@@ -4,12 +4,15 @@ import hashlib
 from urllib.parse import parse_qs, urlparse
 
 import httpx
+import pytest
 
+from app.api import epic as epic_api
+from app.connectors import base as connector_base
 from app.connectors.base import FHIRConnector
 from app.connectors.epic import EpicFHIRConnector
 from app.connectors.hapi import HAPIConnector
 from app.connectors.oracle import OracleConnector
-from app.api.epic import EPIC_FHIR_AUDIENCE, EPIC_SCOPES, epic_login
+from app.api.epic import EPIC_FHIR_AUDIENCE, EPIC_SCOPES, epic_callback, epic_login
 from app.core.config import settings
 from app.services.epic_auth_service import EpicOAuthStore
 from app.utils.fhir import (
@@ -49,8 +52,10 @@ class StubConnector(FHIRConnector):
         return []
 
 
-def test_pagination_collects_resources_from_next_bundle_page() -> None:
-    first_url = "https://fhir.example/Patient?_count=1"
+def test_pagination_collects_resources_from_next_bundle_page(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    first_url = "https://fhir.example/Patient?_count=5"
     second_url = "https://fhir.example/Patient?page=2"
     pages: dict[str, FHIRResource] = {
         first_url: {
@@ -72,23 +77,36 @@ def test_pagination_collects_resources_from_next_bundle_page() -> None:
         requests.append((url, params))
         return pages[url]
 
-    resources = asyncio.run(
-        paginate_fhir_bundle(
-            first_url,
-            fetch_page,
-            params={"_count": 1},
+    with caplog.at_level("INFO", logger="app.utils.fhir"):
+        resources = asyncio.run(
+            paginate_fhir_bundle(
+                first_url,
+                fetch_page,
+                params={"_count": 5},
+            )
         )
-    )
 
     assert [resource["id"] for resource in resources] == ["1", "2"]
     assert requests == [
-        (first_url, {"_count": 1}),
+        (first_url, {"_count": 5}),
         (second_url, None),
     ]
+    assert "FHIR pagination completed: pages=2 resources=2" in caplog.text
 
 
-def test_get_retries_after_rate_limit_response() -> None:
+def test_hapi_retries_with_backoff_after_rate_limit_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     attempts = 0
+    delays: list[float] = []
+    retry_wait = connector_base._retry_wait
+
+    def record_wait(retry_state: object) -> float:
+        delay = retry_wait(retry_state)  # type: ignore[arg-type]
+        delays.append(delay)
+        return 0
+
+    monkeypatch.setattr(connector_base, "_retry_wait", record_wait)
 
     def handle_request(request: httpx.Request) -> httpx.Response:
         nonlocal attempts
@@ -96,7 +114,7 @@ def test_get_retries_after_rate_limit_response() -> None:
         if attempts == 1:
             return httpx.Response(
                 429,
-                headers={"Retry-After": "0"},
+                headers={"Retry-After": "2"},
                 request=request,
             )
 
@@ -106,19 +124,20 @@ def test_get_retries_after_rate_limit_response() -> None:
             request=request,
         )
 
-    async def make_request() -> FHIRResource:
+    async def make_request() -> FHIRPage:
         transport = httpx.MockTransport(handle_request)
         async with httpx.AsyncClient(transport=transport) as client:
-            connector = StubConnector(
-                "https://fhir.example",
+            connector = HAPIConnector(
+                base_url="https://hapi.fhir.org/baseR4",
                 client=client,
             )
-            return await connector._get("Patient")
+            return await connector.get_patient_page(page=1, count=5)
 
     response = asyncio.run(make_request())
 
-    assert response == {"resourceType": "Bundle", "entry": []}
+    assert response == {"resources": [], "has_next": False}
     assert attempts == 2
+    assert delays == [2.0]
 
 
 def test_hapi_can_fetch_a_configured_patient_directly() -> None:
@@ -235,7 +254,7 @@ def test_epic_pkce_uses_s256_and_state_is_single_use() -> None:
         hashlib.sha256(verifier.encode("ascii")).digest()
     ).rstrip(b"=").decode("ascii")
 
-    assert state
+    assert len(state) == 32
     assert session_id
     assert challenge == expected_challenge
     pending = store.consume_authorization(state)
@@ -278,6 +297,35 @@ def test_epic_patient_page_sends_bearer_token() -> None:
     assert requests_seen[0].headers["Accept"] == "application/fhir+json"
 
 
+def test_epic_patient_context_reads_the_authorized_patient() -> None:
+    requests_seen: list[httpx.Request] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        requests_seen.append(request)
+        return httpx.Response(
+            200,
+            json={"resourceType": "Patient", "id": "camila"},
+            request=request,
+        )
+
+    async def fetch() -> list[dict[str, object]]:
+        transport = httpx.MockTransport(handle_request)
+        async with httpx.AsyncClient(transport=transport) as client:
+            connector = EpicFHIRConnector(
+                base_url="https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
+                access_token="sandbox-token",
+                patient_id="camila",
+                client=client,
+            )
+            return await connector.get_patients()
+
+    result = asyncio.run(fetch())
+
+    assert result == [{"resourceType": "Patient", "id": "camila"}]
+    assert requests_seen[0].url.path.endswith("/Patient/camila")
+    assert requests_seen[0].headers["Authorization"] == "Bearer sandbox-token"
+
+
 def test_epic_login_redirect_contains_required_smart_parameters(monkeypatch) -> None:
     monkeypatch.setattr(
         settings,
@@ -310,5 +358,71 @@ def test_epic_login_redirect_contains_required_smart_parameters(monkeypatch) -> 
     assert query["scope"] == [EPIC_SCOPES]
     assert query["aud"] == [EPIC_FHIR_AUDIENCE]
     assert query["state"][0]
+    assert len(query["state"][0]) == 32
     assert query["code_challenge"][0]
     assert query["code_challenge_method"] == ["S256"]
+
+
+def test_epic_callback_exchanges_code_and_stores_token(monkeypatch) -> None:
+    store = EpicOAuthStore()
+    state, session_id, verifier, _ = store.begin_authorization()
+    request_seen: dict[str, object] = {}
+
+    class FakeTokenResponse:
+        @staticmethod
+        def raise_for_status() -> None:
+            return None
+
+        @staticmethod
+        def json() -> dict[str, object]:
+            return {
+                "access_token": "epic-sandbox-token",
+                "expires_in": 300,
+                "patient": "example-patient",
+            }
+
+    class FakeAsyncClient:
+        def __init__(self, **_: object) -> None:
+            pass
+
+        async def __aenter__(self) -> "FakeAsyncClient":
+            return self
+
+        async def __aexit__(self, *_: object) -> None:
+            return None
+
+        async def post(self, url: str, **kwargs: object) -> FakeTokenResponse:
+            request_seen["url"] = url
+            request_seen.update(kwargs)
+            return FakeTokenResponse()
+
+    monkeypatch.setattr(epic_api, "epic_oauth_store", store)
+    monkeypatch.setattr(epic_api.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(settings, "epic_token_url", epic_api.EPIC_TOKEN_URL)
+    monkeypatch.setattr(settings, "epic_client_id", epic_api.EPIC_CLIENT_ID)
+    monkeypatch.setattr(settings, "epic_redirect_uri", epic_api.EPIC_REDIRECT_URI)
+    monkeypatch.setattr(settings, "frontend_url", "http://localhost:5173")
+
+    response = asyncio.run(
+        epic_callback(
+            code="authorization-code",
+            state_value=state,
+            error=None,
+            error_description=None,
+        )
+    )
+
+    assert request_seen["url"] == epic_api.EPIC_TOKEN_URL
+    assert request_seen["data"] == {
+        "grant_type": "authorization_code",
+        "code": "authorization-code",
+        "redirect_uri": epic_api.EPIC_REDIRECT_URI,
+        "client_id": epic_api.EPIC_CLIENT_ID,
+        "code_verifier": verifier,
+    }
+    assert "client_secret" not in request_seen["data"]
+    assert store.get_token(session_id).value == "epic-sandbox-token"
+    assert response.headers["location"].endswith(
+        "/dashboard?source=epic&epic=connected"
+    )
+    assert "epic_session=" in response.headers["set-cookie"]

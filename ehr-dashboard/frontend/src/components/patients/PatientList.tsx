@@ -29,7 +29,13 @@ export function PatientList({ patients }: PatientListProps) {
               Gender
             </th>
             <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Clinical data
+            </th>
+            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
               EHR Source
+            </th>
+            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Source record
             </th>
           </tr>
         </thead>

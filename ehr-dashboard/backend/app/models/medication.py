@@ -31,7 +31,7 @@ class Medication(Base):
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
     patient_id: Mapped[UUID] = mapped_column(
         PostgreSQLUUID(as_uuid=True),
-        ForeignKey("patients.id"),
+        ForeignKey("patients.id", ondelete="CASCADE"),
         nullable=False,
     )
     status: Mapped[str | None] = mapped_column(String(100))

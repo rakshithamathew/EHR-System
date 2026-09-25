@@ -32,6 +32,9 @@ export function useSyncEhr() {
       await queryClient.invalidateQueries({
         queryKey: patientQueryKeys.bySource(source),
       });
+      await queryClient.invalidateQueries({
+        queryKey: ehrQueryKeys.all,
+      });
     },
   });
 }

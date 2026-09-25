@@ -71,6 +71,23 @@ python -m app.core.seed
 
 The local API is available at `http://localhost:8000`, with OpenAPI documentation at `http://localhost:8000/docs`.
 
+## HAPI and Oracle synchronization
+
+Apply migrations before the first sync, then use these endpoints:
+
+```text
+GET  /api/sources
+POST /api/sync?source=hapi
+POST /api/sync?source=oracle
+GET  /api/patients?source=hapi&page=1&limit=20
+GET  /api/patients/{database_patient_id}
+```
+
+Synchronization follows provider-supplied FHIR Bundle `next` links and upserts
+patients, conditions, and medication requests into PostgreSQL. Public sandbox
+syncs run in the request and can take several minutes. Patient list and detail
+requests read PostgreSQL and therefore do not wait on either sandbox.
+
 ## Tests
 
 Run the focused backend test suite with:

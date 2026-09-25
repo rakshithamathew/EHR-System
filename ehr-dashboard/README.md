@@ -1,20 +1,79 @@
-# EHR/FHIR Dashboard
+# Multi-source EHR Patient Dashboard
 
-Minimal full-stack EHR/FHIR dashboard with a React frontend and a layered FastAPI backend. The application synchronizes public FHIR patient, condition, and medication resources into PostgreSQL and keeps the frontend and backend independently deployable.
+A small full-stack dashboard that synchronizes sandbox FHIR R4 data from HAPI
+FHIR, Oracle Health, and Epic into PostgreSQL. Users can switch providers,
+search a paginated patient directory, run an on-demand sync, and inspect each
+patient's demographics, conditions, and medications.
 
-## Structure
+The frontend uses React, TypeScript, Vite, TanStack Query, and Tailwind CSS. The
+backend uses FastAPI, SQLAlchemy, Alembic, and PostgreSQL.
+
+## Architecture
 
 ```text
-ehr-dashboard/
-|-- frontend/   React, TypeScript, Vite, and Tailwind CSS
-|-- backend/    FastAPI, SQLAlchemy, PostgreSQL, and Alembic
-|-- README.md
-`-- .gitignore
+                         +--> HAPI FHIR R4 (public)
+React/Vite <--> FastAPI -+--> Oracle Health R4 (public)
+                 |       +--> Epic R4 (SMART OAuth + PKCE)
+                 |
+                 +<--> PostgreSQL
+                       patients / conditions / medications / sync_runs
 ```
 
-## Frontend
+Routes contain HTTP concerns, the sync service orchestrates each run, provider
+connectors own FHIR HTTP/pagination/retry behavior, and repositories own SQL and
+`ON CONFLICT DO UPDATE` upserts. Resources use source-scoped unique identities,
+so repeated syncs update rows instead of creating duplicates.
 
-Requirements: Node.js 20 or newer and npm.
+## EHR authentication
+
+| Source | Auth | Login Required? | Notes |
+| --- | --- | --- | --- |
+| HAPI | None | No | Public sandbox |
+| Oracle | None | No | Public open sandbox |
+| Epic | OAuth 2.0 + PKCE | Yes (sandbox user) | SMART on FHIR |
+
+### Epic SMART on FHIR flow
+
+1. `GET /api/epic/login` generates state and a PKCE verifier/challenge, stores the pending authorization server-side, and redirects to Epic.
+2. The user signs in to the MyChart sandbox using `fhircamila` / `epicepic1`.
+3. Epic redirects to `http://localhost:5173/callback?code=...&state=...`.
+4. The frontend forwards the callback query to `/api/epic/callback`; FastAPI validates state and exchanges the code at Epic's token endpoint.
+5. The access token and expiry are stored in the sandbox session and used as a Bearer token for Epic FHIR calls.
+
+Epic requires `aud` to exactly equal the FHIR base URL. Omitting it returns
+Epic `error=4`. The redirect URI must also match the URI registered in the Epic
+developer portal byte-for-byte.
+
+## Local setup
+
+Requirements: PostgreSQL 18, Python 3.12+, and Node.js 20+.
+
+Create `backend/.env` from `.env.example` and configure:
+
+```ini
+DATABASE_URL=postgresql+psycopg://postgres:root@localhost:5432/ehr_dashboard
+FRONTEND_URL=http://localhost:5173
+HAPI_FHIR_BASE_URL=https://hapi.fhir.org/baseR4
+ORACLE_FHIR_BASE_URL=https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d
+EPIC_FHIR_BASE_URL=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
+EPIC_CLIENT_ID=6b14ff08-2522-41fa-9c83-0b395a36add4
+EPIC_REDIRECT_URI=http://localhost:5173/callback
+EPIC_AUTHORIZATION_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize
+EPIC_TOKEN_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
+```
+
+Start the backend:
+
+```bash
+cd backend
+python -m venv .venv
+source .venv/Scripts/activate
+python -m pip install -r requirements-dev.txt
+alembic upgrade head
+uvicorn app.main:app --reload --port 8000
+```
+
+Start the frontend in a second terminal:
 
 ```bash
 cd frontend
@@ -23,37 +82,40 @@ npm install
 npm run dev
 ```
 
-Set `VITE_API_BASE_URL` to the FastAPI backend origin.
+Visit [http://localhost:5173](http://localhost:5173). Set
+`VITE_API_BASE_URL=http://localhost:8000` in `frontend/.env`.
 
-## Backend
+## Synchronization
 
-Requirements: Python 3.12 or newer and a PostgreSQL database.
+```bash
+curl -X POST "http://localhost:8000/api/sync?source=hapi"
+curl -X POST "http://localhost:8000/api/sync?source=oracle"
+curl -X POST "http://localhost:8000/api/sync?source=epic" --cookie "epic_session=..."
+```
+
+Epic must first be connected in the browser through `/api/epic/login`. Bundle
+pagination follows provider-supplied `link[relation=next]` URLs. Temporary
+transport errors, HTTP 429, and HTTP 5xx responses use bounded exponential
+backoff, and `Retry-After` is honored. Connectors allow at most five requests
+per second.
+
+Run the focused tests and live HAPI idempotency check:
 
 ```bash
 cd backend
-python -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r requirements-dev.txt
-cp .env.example .env
-alembic upgrade head
-uvicorn app.main:app --reload
+pytest -q
+cd ..
+python scripts/test_idempotency.py
 ```
 
-On Windows PowerShell, activate the virtual environment with `.venv\Scripts\Activate.ps1` and copy environment files with `Copy-Item .env.example .env`.
+The script runs HAPI sync twice and asserts that source-filtered patient,
+condition, and medication table counts remain identical.
 
-Set `DATABASE_URL` in `backend/.env` before running Alembic commands. The URL should use SQLAlchemy's psycopg dialect, for example `postgresql+psycopg://user:password@localhost:5432/ehr_dashboard`.
+## Known limitations
 
-Set `FRONTEND_URL` to the frontend origin allowed by CORS.
-
-Set `HAPI_FHIR_BASE_URL` to the HAPI FHIR R4 endpoint.
-
-Set `ORACLE_FHIR_BASE_URL` to the Oracle Health FHIR R4 endpoint.
-
-Epic settings are included as empty placeholders. Epic resource access remains disabled until SMART on FHIR OAuth authorization is implemented.
-
-The backend health check is available at `GET /api/health`. Run the focused backend tests from `backend/` with `pytest`; PostgreSQL repository tests use `TEST_DATABASE_URL` when it is configured.
-
-## Deployment
-
-The projects are kept independent. The backend includes a minimal `vercel.json`; configure the backend directory as the Vercel project root when deploying it separately. See `backend/README.md` for local and deployment instructions.
+- Epic requires interactive MyChart login; no unauthenticated Epic patient endpoint exists.
+- Epic's registered callback must be exactly `http://localhost:5173/callback`; registering `https://localhost:5173/callback` causes `error=4` before login.
+- The lightweight Epic token store is process-local and intended for this sandbox demo, not multi-instance production deployment.
+- Sync is on demand and runs inline with the API request.
+- There is no scheduler, queue, or background worker.
+- Public sandboxes can be slow, rate-limited, reset, or temporarily unavailable.

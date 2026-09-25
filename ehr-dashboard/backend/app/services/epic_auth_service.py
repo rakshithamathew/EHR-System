@@ -37,7 +37,8 @@ class EpicOAuthStore:
 
     def begin_authorization(self) -> tuple[str, str, str, str]:
         self._remove_expired()
-        state = secrets.token_urlsafe(32)
+        # Twenty-four random bytes encode to exactly 32 URL-safe characters.
+        state = secrets.token_urlsafe(24)
         session_id = secrets.token_urlsafe(32)
         code_verifier = secrets.token_urlsafe(64)
         digest = hashlib.sha256(code_verifier.encode("ascii")).digest()

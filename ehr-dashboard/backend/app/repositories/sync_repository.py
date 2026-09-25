@@ -35,7 +35,10 @@ class SyncRepository:
     ) -> list[tuple[EHRSource, SyncRun | None]]:
         latest_sync_id = (
             select(SyncRun.id)
-            .where(SyncRun.ehr_source_id == EHRSource.id)
+            .where(
+                SyncRun.ehr_source_id == EHRSource.id,
+                SyncRun.status == "completed",
+            )
             .order_by(SyncRun.started_at.desc(), SyncRun.id.desc())
             .limit(1)
             .correlate(EHRSource)

@@ -4,7 +4,11 @@ import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { usePatient } from "../hooks/usePatient";
-import { formatDate, formatEhrSource } from "../utils/format";
+import {
+  formatDate,
+  formatEhrSource,
+  getPatientSourceUrl,
+} from "../utils/format";
 
 function displayValue(value: string | null): string {
   return value || "Not recorded";
@@ -35,6 +39,12 @@ export function PatientDetailsPage() {
   const { patientId } = useParams<{ patientId: string }>();
   const [searchParams] = useSearchParams();
   const patientQuery = usePatient(patientId, searchParams.get("source") ?? undefined);
+  const sourceUrl = patientQuery.data
+    ? getPatientSourceUrl(
+        patientQuery.data.patient.source,
+        patientQuery.data.patient.external_id,
+      )
+    : null;
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
@@ -69,11 +79,21 @@ export function PatientDetailsPage() {
         </div>
       ) : (
         <>
-          <header className="mt-7 border-b border-slate-200 pb-6">
+          <header className="mt-7 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-6">
             <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
               {patientQuery.data.patient.name ||
                 patientQuery.data.patient.external_id}
             </h1>
+            {sourceUrl && (
+              <a
+                href={sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-slate-50 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
+              >
+                Open in source EHR
+              </a>
+            )}
           </header>
 
           <section className="mt-8" aria-labelledby="patient-information-heading">

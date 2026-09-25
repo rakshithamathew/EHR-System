@@ -9,7 +9,17 @@ from app.services.epic_auth_service import EPIC_SESSION_COOKIE, epic_oauth_store
 
 router = APIRouter(prefix="/epic")
 
-EPIC_SCOPES = "patient/Patient.read patient/Observation.read"
+EPIC_SCOPES = (
+    "patient/Patient.read "
+    "patient/Condition.read "
+    "patient/MedicationRequest.read"
+)
+EPIC_CLIENT_ID = "6b14ff08-2522-41fa-9c83-0b395a36add4"
+EPIC_REDIRECT_URI = "http://localhost:5173/callback"
+EPIC_AUTHORIZATION_URL = (
+    "https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize"
+)
+EPIC_TOKEN_URL = "https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token"
 EPIC_FHIR_AUDIENCE = (
     "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4"
 )
@@ -24,6 +34,16 @@ def _required_setting(value: str | None, name: str) -> str:
     return value.strip()
 
 
+def _exact_setting(value: str | None, name: str, expected: str) -> str:
+    configured = _required_setting(value, name)
+    if configured != expected:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"{name} must exactly equal {expected}",
+        )
+    return configured
+
+
 @router.get("/status")
 async def epic_status(request: Request) -> dict[str, bool]:
     token = epic_oauth_store.get_token(request.cookies.get(EPIC_SESSION_COOKIE))
@@ -32,13 +52,26 @@ async def epic_status(request: Request) -> dict[str, bool]:
 
 @router.get("/login")
 async def epic_login() -> RedirectResponse:
-    authorization_url = _required_setting(
+    authorization_url = _exact_setting(
         settings.epic_authorization_url,
         "EPIC_AUTHORIZATION_URL",
+        EPIC_AUTHORIZATION_URL,
     )
-    client_id = _required_setting(settings.epic_client_id, "EPIC_CLIENT_ID")
-    redirect_uri = _required_setting(settings.epic_redirect_uri, "EPIC_REDIRECT_URI")
-    _required_setting(settings.epic_fhir_base_url, "EPIC_FHIR_BASE_URL")
+    client_id = _exact_setting(
+        settings.epic_client_id,
+        "EPIC_CLIENT_ID",
+        EPIC_CLIENT_ID,
+    )
+    redirect_uri = _exact_setting(
+        settings.epic_redirect_uri,
+        "EPIC_REDIRECT_URI",
+        EPIC_REDIRECT_URI,
+    )
+    _exact_setting(
+        settings.epic_fhir_base_url,
+        "EPIC_FHIR_BASE_URL",
+        EPIC_FHIR_AUDIENCE,
+    )
 
     state, _, _, code_challenge = epic_oauth_store.begin_authorization()
     query = urlencode(
@@ -81,9 +114,21 @@ async def epic_callback(
             detail="Epic OAuth state is invalid or expired",
         )
 
-    token_url = _required_setting(settings.epic_token_url, "EPIC_TOKEN_URL")
-    client_id = _required_setting(settings.epic_client_id, "EPIC_CLIENT_ID")
-    redirect_uri = _required_setting(settings.epic_redirect_uri, "EPIC_REDIRECT_URI")
+    token_url = _exact_setting(
+        settings.epic_token_url,
+        "EPIC_TOKEN_URL",
+        EPIC_TOKEN_URL,
+    )
+    client_id = _exact_setting(
+        settings.epic_client_id,
+        "EPIC_CLIENT_ID",
+        EPIC_CLIENT_ID,
+    )
+    redirect_uri = _exact_setting(
+        settings.epic_redirect_uri,
+        "EPIC_REDIRECT_URI",
+        EPIC_REDIRECT_URI,
+    )
     print("Epic token exchange started", flush=True)
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0)) as client:

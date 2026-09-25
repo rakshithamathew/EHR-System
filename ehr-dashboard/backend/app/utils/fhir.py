@@ -1,6 +1,7 @@
 from collections.abc import Awaitable, Callable, Mapping
 from copy import deepcopy
 from datetime import date, datetime
+import logging
 from typing import Any, TypedDict
 from urllib.parse import urljoin
 
@@ -10,6 +11,8 @@ FHIRPageFetcher = Callable[
     [str, FHIRQueryParams | None],
     Awaitable[FHIRResource],
 ]
+
+logger = logging.getLogger(__name__)
 
 
 class NormalizedPatient(TypedDict):
@@ -255,15 +258,28 @@ async def paginate_fhir_bundle(
     resources: list[FHIRResource] = []
     current_url: str | None = initial_url
     current_params = params
+    page_count = 0
 
     while current_url is not None:
         bundle = await fetch_page(current_url, current_params)
-        resources.extend(extract_bundle_resources(bundle))
+        page_count += 1
+        page_resources = extract_bundle_resources(bundle)
+        resources.extend(page_resources)
+        logger.info(
+            "Fetched FHIR bundle page %d (%d resources)",
+            page_count,
+            len(page_resources),
+        )
 
         next_link = get_next_bundle_link(bundle)
         current_url = urljoin(current_url, next_link) if next_link else None
         current_params = None
 
+    logger.info(
+        "FHIR pagination completed: pages=%d resources=%d",
+        page_count,
+        len(resources),
+    )
     return resources
 
 

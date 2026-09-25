@@ -2,9 +2,15 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models.ehr_source import EHRSource
+from app.models.condition import Condition
+from app.models.medication import Medication
 from app.models.patient import Patient
 from app.repositories.patient_repository import PatientRepository
-from app.utils.fhir import normalize_patient
+from app.utils.fhir import (
+    normalize_condition,
+    normalize_medication_request,
+    normalize_patient,
+)
 
 
 def add_source(session: Session, code: str, name: str) -> EHRSource:
@@ -81,3 +87,68 @@ def test_patient_identity_is_scoped_to_ehr_source(db_session: Session) -> None:
         hapi.id,
         oracle.id,
     }
+
+
+def test_clinical_resources_upsert_and_patient_counts(db_session: Session) -> None:
+    hapi = add_source(db_session, "hapi", "HAPI FHIR")
+    repository = PatientRepository(db_session)
+    patient = repository.upsert_patient(
+        hapi.id,
+        normalize_patient(patient_resource("Clinical Patient")),
+    )
+
+    first_condition = {
+        "resourceType": "Condition",
+        "id": "condition-1",
+        "clinicalStatus": {"coding": [{"code": "active"}]},
+        "code": {"coding": [{"code": "123", "display": "First"}]},
+    }
+    updated_condition = {
+        **first_condition,
+        "code": {"coding": [{"code": "123", "display": "Updated"}]},
+    }
+    medication = {
+        "resourceType": "MedicationRequest",
+        "id": "medication-1",
+        "status": "active",
+        "medicationCodeableConcept": {
+            "coding": [{"code": "456", "display": "Example medication"}]
+        },
+    }
+
+    repository.upsert_condition(
+        hapi.id,
+        patient.id,
+        normalize_condition(first_condition),
+    )
+    repository.upsert_condition(
+        hapi.id,
+        patient.id,
+        normalize_condition(updated_condition),
+    )
+    repository.upsert_medication(
+        hapi.id,
+        patient.id,
+        normalize_medication_request(medication),
+    )
+    repository.upsert_medication(
+        hapi.id,
+        patient.id,
+        normalize_medication_request(medication),
+    )
+    db_session.flush()
+
+    assert db_session.scalar(select(func.count(Condition.id))) == 1
+    assert db_session.scalar(select(func.count(Medication.id))) == 1
+    stored_condition = db_session.scalar(select(Condition))
+    assert stored_condition is not None
+    assert stored_condition.display == "Updated"
+
+    rows = repository.list_patients(
+        source_code="hapi",
+        search=None,
+        limit=20,
+        offset=0,
+    )
+    assert len(rows) == 1
+    assert rows[0][2:] == (1, 1)

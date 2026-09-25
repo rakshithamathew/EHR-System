@@ -27,7 +27,9 @@ class EpicFHIRConnector(FHIRConnector):
         authorization_url: str | None = None,
         token_url: str | None = None,
         access_token: str | None = None,
+        patient_id: str | None = None,
         timeout: float | httpx.Timeout = 30.0,
+        max_attempts: int = 4,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.epic_fhir_base_url = base_url or settings.epic_fhir_base_url
@@ -38,12 +40,14 @@ class EpicFHIRConnector(FHIRConnector):
         )
         self.epic_token_url = token_url or settings.epic_token_url
         self.access_token = access_token
+        self.patient_id = patient_id
 
         if not self.epic_fhir_base_url:
             raise ValueError("EPIC_FHIR_BASE_URL must be configured")
         super().__init__(
             base_url=self.epic_fhir_base_url,
             timeout=timeout,
+            max_attempts=max_attempts,
             client=client,
         )
 
@@ -55,9 +59,11 @@ class EpicFHIRConnector(FHIRConnector):
         return {"Authorization": f"Bearer {self.access_token}"}
 
     async def get_patients(self) -> list[FHIRResource]:
+        if self.patient_id:
+            return [await self.get_patient(self.patient_id)]
         return await self._get_paginated(
             "Patient",
-            params={"_count": 20},
+            params={"_count": 5},
             headers=self._authorization_headers(),
         )
 

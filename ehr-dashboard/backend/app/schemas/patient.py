@@ -13,7 +13,7 @@ class FHIRPatientResponse(BaseModel):
     birth_date: date | None = Field(alias="birthDate")
 
 
-class PatientPageResponse(BaseModel):
+class FHIRPatientPageResponse(BaseModel):
     items: list[FHIRPatientResponse]
     page: int
     has_next: bool
@@ -28,6 +28,15 @@ class PatientSummaryResponse(BaseModel):
     family_name: str | None
     gender: str | None
     birth_date: date | None
+    condition_count: int = 0
+    medication_count: int = 0
+    last_synced_at: datetime | None = None
+
+
+class PatientPageResponse(BaseModel):
+    items: list[PatientSummaryResponse]
+    page: int
+    has_next: bool
 
 
 class ConditionResponse(BaseModel):

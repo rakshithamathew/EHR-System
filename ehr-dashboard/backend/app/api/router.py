@@ -11,5 +11,6 @@ async def health() -> dict[str, str]:
 
 
 api_router.include_router(ehr.router, tags=["ehr"])
+api_router.include_router(ehr.public_router, tags=["ehr"])
 api_router.include_router(epic.router, tags=["epic"])
 api_router.include_router(patients.router, tags=["patients"])

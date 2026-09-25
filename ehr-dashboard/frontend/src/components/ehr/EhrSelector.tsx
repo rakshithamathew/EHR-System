@@ -1,4 +1,5 @@
 import type { EhrSource } from "../../types/ehr";
+import { formatDateTime } from "../../utils/format";
 
 interface EhrSelectorProps {
   ehrs: EhrSource[];
@@ -24,7 +25,7 @@ export function EhrSelector({ ehrs, value, onChange }: EhrSelectorProps) {
               onClick={() => onChange(ehr.code)}
               disabled={!ehr.enabled}
               aria-pressed={isSelected}
-              className={`rounded-md border px-4 py-2 text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 ${
+              className={`rounded-md border px-4 py-2 text-left text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 ${
                 !ehr.enabled
                   ? "cursor-not-allowed border-transparent bg-transparent text-slate-400"
                   : isSelected
@@ -36,6 +37,9 @@ export function EhrSelector({ ehrs, value, onChange }: EhrSelectorProps) {
               {!ehr.enabled && (
                 <span className="ml-2 text-xs font-medium">Unavailable</span>
               )}
+              <span className="mt-0.5 block text-[11px] font-normal opacity-75">
+                Last synced: {formatDateTime(ehr.last_sync?.completed_at ?? null)}
+              </span>
             </button>
           );
         })}

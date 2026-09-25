@@ -45,6 +45,7 @@ class PatientRepository:
             gender=patient["gender"],
             birth_date=patient["birth_date"],
             raw_resource=patient["raw_resource"],
+            last_synced_at=func.now(),
         )
         statement = statement.on_conflict_do_update(
             constraint="uq_patients_ehr_source_external_id",
@@ -55,6 +56,7 @@ class PatientRepository:
                 "gender": statement.excluded.gender,
                 "birth_date": statement.excluded.birth_date,
                 "raw_resource": statement.excluded.raw_resource,
+                "last_synced_at": func.now(),
                 "updated_at": func.now(),
             },
         ).returning(Patient)
@@ -158,10 +160,39 @@ class PatientRepository:
         search: str | None,
         limit: int,
         offset: int,
-    ) -> list[tuple[Patient, str]]:
-        statement = select(Patient, EHRSource.code).join(
+        sort_by: str = "name",
+        sort_order: str = "asc",
+    ) -> list[tuple[Patient, str, int, int]]:
+        condition_counts = (
+            select(
+                Condition.patient_id.label("patient_id"),
+                func.count(Condition.id).label("condition_count"),
+            )
+            .group_by(Condition.patient_id)
+            .subquery()
+        )
+        medication_counts = (
+            select(
+                Medication.patient_id.label("patient_id"),
+                func.count(Medication.id).label("medication_count"),
+            )
+            .group_by(Medication.patient_id)
+            .subquery()
+        )
+        statement = select(
+            Patient,
+            EHRSource.code,
+            func.coalesce(condition_counts.c.condition_count, 0),
+            func.coalesce(medication_counts.c.medication_count, 0),
+        ).join(
             EHRSource,
             Patient.ehr_source_id == EHRSource.id,
+        ).outerjoin(
+            condition_counts,
+            condition_counts.c.patient_id == Patient.id,
+        ).outerjoin(
+            medication_counts,
+            medication_counts.c.patient_id == Patient.id,
         )
 
         if source_code:
@@ -178,11 +209,20 @@ class PatientRepository:
                 )
             )
 
+        sort_columns = {
+            "name": Patient.name,
+            "external_id": Patient.external_id,
+            "birth_date": Patient.birth_date,
+            "gender": Patient.gender,
+        }
+        sort_column = sort_columns.get(sort_by, Patient.name)
+        order_expression = (
+            sort_column.desc().nulls_last()
+            if sort_order == "desc"
+            else sort_column.asc().nulls_last()
+        )
         statement = (
-            statement.order_by(
-                Patient.name.asc().nulls_last(),
-                Patient.id.asc(),
-            )
+            statement.order_by(order_expression, Patient.id.asc())
             .limit(limit)
             .offset(offset)
         )

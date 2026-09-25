@@ -37,7 +37,7 @@ class HAPIConnector(FHIRConnector):
     async def get_patients(self) -> list[FHIRResource]:
         return await self._get_paginated(
             "Patient",
-            params={"_count": 20},
+            params={"_count": 5},
         )
 
     async def get_patient_page(

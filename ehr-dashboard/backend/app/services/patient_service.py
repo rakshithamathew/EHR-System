@@ -15,6 +15,7 @@ from app.models.patient import Patient
 from app.repositories.patient_repository import PatientRepository
 from app.schemas.patient import (
     ConditionResponse,
+    FHIRPatientPageResponse,
     FHIRPatientResponse,
     MedicationResponse,
     PatientDetailsResponse,
@@ -105,7 +106,7 @@ async def fetch_patient_page(
     count: int,
     search: str | None = None,
     access_token: str | None = None,
-) -> PatientPageResponse:
+) -> FHIRPatientPageResponse:
     connector = _provider_connector(source, access_token=access_token)
     try:
         async with connector:
@@ -128,7 +129,7 @@ async def fetch_patient_page(
         for resource in result["resources"]
         if (patient := _fhir_patient_response(resource)) is not None
     ]
-    return PatientPageResponse(
+    return FHIRPatientPageResponse(
         items=patients,
         page=page,
         has_next=result["has_next"],
@@ -230,7 +231,12 @@ class PatientService:
         self.repository = repository
 
     @staticmethod
-    def _patient_summary(patient: Patient, source: str) -> PatientSummaryResponse:
+    def _patient_summary(
+        patient: Patient,
+        source: str,
+        condition_count: int = 0,
+        medication_count: int = 0,
+    ) -> PatientSummaryResponse:
         return PatientSummaryResponse(
             id=patient.id,
             source=source,
@@ -240,6 +246,9 @@ class PatientService:
             family_name=patient.family_name,
             gender=patient.gender,
             birth_date=patient.birth_date,
+            condition_count=condition_count,
+            medication_count=medication_count,
+            last_synced_at=patient.last_synced_at,
         )
 
     @staticmethod
@@ -273,6 +282,8 @@ class PatientService:
         search: str | None,
         limit: int,
         offset: int,
+        sort_by: str = "name",
+        sort_order: str = "asc",
     ) -> list[PatientSummaryResponse]:
         source_code = source.strip().lower() if source and source.strip() else None
         search_term = search.strip() if search and search.strip() else None
@@ -281,17 +292,64 @@ class PatientService:
             search=search_term,
             limit=limit,
             offset=offset,
+            sort_by=sort_by,
+            sort_order=sort_order,
         )
-        return [self._patient_summary(patient, code) for patient, code in rows]
+        return [
+            self._patient_summary(
+                patient,
+                code,
+                condition_count,
+                medication_count,
+            )
+            for patient, code, condition_count, medication_count in rows
+        ]
 
-    def get_patient_details(self, patient_id: UUID) -> PatientDetailsResponse:
+    def list_patient_page(
+        self,
+        *,
+        source: str,
+        search: str | None,
+        limit: int,
+        page: int,
+        sort_by: str = "name",
+        sort_order: str = "asc",
+    ) -> PatientPageResponse:
+        rows = self.list_patients(
+            source=source,
+            search=search,
+            limit=limit + 1,
+            offset=(page - 1) * limit,
+            sort_by=sort_by,
+            sort_order=sort_order,
+        )
+        return PatientPageResponse(
+            items=rows[:limit],
+            page=page,
+            has_next=len(rows) > limit,
+        )
+
+    def get_patient_details(
+        self,
+        patient_id: UUID,
+        *,
+        source: str | None = None,
+    ) -> PatientDetailsResponse:
         details = self.repository.get_patient_details(patient_id)
         if details is None:
             raise PatientNotFoundError(f"Patient '{patient_id}' was not found")
 
-        patient, source, conditions, medications = details
+        patient, stored_source, conditions, medications = details
+        if source is not None and source != stored_source:
+            raise PatientNotFoundError(f"Patient '{patient_id}' was not found")
+
         return PatientDetailsResponse(
-            patient=self._patient_summary(patient, source),
+            patient=self._patient_summary(
+                patient,
+                stored_source,
+                len(conditions),
+                len(medications),
+            ),
             conditions=[self._condition(condition) for condition in conditions],
             medications=[self._medication(medication) for medication in medications],
         )

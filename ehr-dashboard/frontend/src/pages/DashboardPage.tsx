@@ -5,13 +5,8 @@ import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { EhrSelector } from "../components/ehr/EhrSelector";
 import { PatientList } from "../components/patients/PatientList";
-import {
-  useEhrs,
-  useEpicConnectionStatus,
-  useSyncEhr,
-} from "../hooks/useEhrs";
+import { useEhrs, useSyncEhr } from "../hooks/useEhrs";
 import { usePatients } from "../hooks/usePatients";
-import { getEpicLoginUrl } from "../api/ehr";
 
 const PATIENTS_PER_PAGE = 20;
 const DASHBOARD_SOURCES = new Set(["hapi", "oracle", "epic"]);
@@ -24,15 +19,12 @@ export function DashboardPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const ehrsQuery = useEhrs();
-  const epicStatusQuery = useEpicConnectionStatus(selectedEhr === "epic");
-  const canLoadPatients =
-    selectedEhr !== "epic" || epicStatusQuery.data?.connected === true;
   const patientsQuery = usePatients(
     selectedEhr,
     debouncedSearch,
     PATIENTS_PER_PAGE,
     page,
-    canLoadPatients,
+    true,
   );
   const syncMutation = useSyncEhr();
 
@@ -61,20 +53,10 @@ export function DashboardPage() {
 
     const defaultSource =
       ehrsQuery.data.find((ehr) => ehr.code === "oracle" && ehr.enabled) ??
-      ehrsQuery.data.find((ehr) => ehr.code === "hapi" && ehr.enabled) ??
-      ehrsQuery.data.find((ehr) => ehr.code === "epic" && ehr.enabled);
+      ehrsQuery.data.find((ehr) => ehr.code === "hapi" && ehr.enabled);
     setPage(1);
     setSelectedEhr(defaultSource?.code ?? "");
   }, [ehrsQuery.data, selectedEhr]);
-
-  useEffect(() => {
-    if (
-      selectedEhr === "epic" &&
-      epicStatusQuery.data?.connected === false
-    ) {
-      window.location.assign(getEpicLoginUrl());
-    }
-  }, [epicStatusQuery.data?.connected, selectedEhr]);
 
   function handleSourceChange(source: string) {
     if (source === selectedEhr) {
@@ -150,39 +132,44 @@ export function DashboardPage() {
                 />
               </label>
 
-              {selectedEhr === "epic" ? (
-                <a
-                  href={getEpicLoginUrl()}
-                  className="rounded-lg bg-teal-700 px-5 py-2.5 text-center text-sm font-semibold text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
-                >
-                  {epicStatusQuery.data?.connected
-                    ? "Reconnect Epic"
-                    : "Connect Epic"}
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => syncMutation.mutate(selectedEhr)}
-                  disabled={!selectedEhr || syncMutation.isPending}
-                  aria-busy={syncMutation.isPending}
-                  className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300"
-                >
-                  {syncMutation.isPending ? "Syncing data..." : "Sync Data"}
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => syncMutation.mutate(selectedEhr)}
+                disabled={!selectedEhr || syncMutation.isPending}
+                aria-busy={syncMutation.isPending}
+                className="inline-flex min-w-32 items-center justify-center gap-2 rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {syncMutation.isPending && (
+                  <span
+                    aria-hidden="true"
+                    className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white"
+                  />
+                )}
+                {syncMutation.isPending ? "Syncing data..." : "Sync Data"}
+              </button>
             </div>
           </section>
 
           <div className="mt-4" aria-live="polite">
             {syncMutation.isError && <ErrorState error={syncMutation.error} />}
-            {syncResult && (
-              <p className="rounded-xl border border-teal-200 bg-teal-50 px-5 py-4 text-base text-teal-900">
-                Sync complete: {syncResult.patients_processed} patients, {" "}
-                {syncResult.conditions_processed} conditions, and {" "}
-                {syncResult.medications_processed} medications processed.
-              </p>
-            )}
           </div>
+
+          {syncResult && (
+            <div
+              role="status"
+              className="fixed right-4 top-4 z-50 max-w-md rounded-xl border border-teal-200 bg-white px-5 py-4 text-sm font-medium text-teal-950 shadow-lg sm:right-6 sm:top-6"
+            >
+              Synced {syncResult.patients_processed} patients, {syncResult.conditions_processed}{" "}
+              conditions, {syncResult.medications_processed} medications
+              <button
+                type="button"
+                onClick={() => syncMutation.reset()}
+                className="ml-3 text-teal-700 underline hover:text-teal-900"
+              >
+                Dismiss
+              </button>
+            </div>
+          )}
 
           <section className="mt-8" aria-labelledby="patient-list-heading">
             <div className="mb-4 flex items-baseline justify-between gap-4">
@@ -201,13 +188,6 @@ export function DashboardPage() {
 
             {!selectedEhr ? (
               <EmptyState message="Select an EHR source to view patients." />
-            ) : selectedEhr === "epic" && epicStatusQuery.isPending ? (
-              <LoadingState message="Checking Epic connection..." />
-            ) : selectedEhr === "epic" && epicStatusQuery.isError ? (
-              <ErrorState error={epicStatusQuery.error} />
-            ) : selectedEhr === "epic" &&
-              epicStatusQuery.data?.connected !== true ? (
-              <EmptyState message="Connect Epic to load sandbox patients." />
             ) : patientsQuery.isPending ? (
               <LoadingState message="Loading patients..." />
             ) : patientsQuery.isError ? (
