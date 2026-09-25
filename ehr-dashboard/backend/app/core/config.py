@@ -8,7 +8,6 @@ class Settings(BaseSettings):
     test_database_url: str | None = None
     frontend_url: str | None = None
     hapi_fhir_base_url: str | None = None
-    hapi_patient_id: str | None = None
     oracle_fhir_base_url: str | None = None
     epic_fhir_base_url: str | None = None
     epic_client_id: str | None = None

@@ -1,4 +1,4 @@
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
@@ -33,7 +33,8 @@ function DetailField({ label, value, capitalize = false }: DetailFieldProps) {
 
 export function PatientDetailsPage() {
   const { patientId } = useParams<{ patientId: string }>();
-  const patientQuery = usePatient(patientId);
+  const [searchParams] = useSearchParams();
+  const patientQuery = usePatient(patientId, searchParams.get("source") ?? undefined);
 
   return (
     <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">

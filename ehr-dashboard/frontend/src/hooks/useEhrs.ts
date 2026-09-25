@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getEhrs, syncEhr } from "../api/ehr";
+import { getEhrs, getEpicConnectionStatus, syncEhr } from "../api/ehr";
 import { patientQueryKeys } from "./usePatients";
 
 export const ehrQueryKeys = {
@@ -11,6 +11,12 @@ export function useEhrs() {
   return useQuery({
     queryKey: ehrQueryKeys.all,
     queryFn: getEhrs,
+    staleTime: Infinity,
+    gcTime: Infinity,
+    retry: false,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
 }
 
@@ -19,13 +25,24 @@ export function useSyncEhr() {
 
   return useMutation({
     mutationFn: syncEhr,
-    onSuccess: async (_result, source) => {
-      await Promise.all([
-        queryClient.invalidateQueries({
-          queryKey: patientQueryKeys.bySource(source),
-        }),
-        queryClient.invalidateQueries({ queryKey: ehrQueryKeys.all }),
-      ]);
+    onSuccess: async (result, source) => {
+      if (result.status !== "completed") {
+        return;
+      }
+      await queryClient.invalidateQueries({
+        queryKey: patientQueryKeys.bySource(source),
+      });
     },
+  });
+}
+
+export function useEpicConnectionStatus(enabled: boolean) {
+  return useQuery({
+    queryKey: [...ehrQueryKeys.all, "epic-status"] as const,
+    queryFn: getEpicConnectionStatus,
+    enabled,
+    staleTime: 30_000,
+    retry: false,
+    refetchOnWindowFocus: false,
   });
 }

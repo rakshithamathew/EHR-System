@@ -5,6 +5,7 @@ from uuid import UUID
 from app.connectors.base import FHIRConnector
 from app.connectors.hapi import HAPIConnector
 from app.connectors.oracle import OracleConnector
+from app.core.config import settings
 from app.models.ehr_source import EHRSource
 from app.repositories.patient_repository import PatientRepository
 from app.repositories.sync_repository import SyncRepository
@@ -72,7 +73,21 @@ class SyncService:
                 EHRSourceResponse(
                     code=source.code,
                     name=source.name,
-                    enabled=source.code in {"hapi", "oracle"},
+                    enabled=(
+                        source.code in {"hapi", "oracle"}
+                        or (
+                            source.code == "epic"
+                            and all(
+                                (
+                                    settings.epic_fhir_base_url,
+                                    settings.epic_client_id,
+                                    settings.epic_redirect_uri,
+                                    settings.epic_authorization_url,
+                                    settings.epic_token_url,
+                                )
+                            )
+                        )
+                    ),
                     last_sync=last_sync_response,
                 )
             )

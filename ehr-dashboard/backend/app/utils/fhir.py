@@ -42,6 +42,11 @@ class NormalizedMedicationRequest(TypedDict):
     raw_resource: FHIRResource
 
 
+class FHIRPage(TypedDict):
+    resources: list[FHIRResource]
+    has_next: bool
+
+
 def _as_string(value: Any) -> str | None:
     if not isinstance(value, str):
         return None
@@ -260,3 +265,36 @@ async def paginate_fhir_bundle(
         current_params = None
 
     return resources
+
+
+async def fetch_fhir_bundle_page(
+    initial_url: str,
+    fetch_page: FHIRPageFetcher,
+    *,
+    page: int,
+    params: FHIRQueryParams | None = None,
+) -> FHIRPage:
+    """Follow server next links until the requested one-based Bundle page."""
+
+    if page < 1:
+        raise ValueError("page must be at least 1")
+
+    current_url: str | None = initial_url
+    current_params = params
+    current_page = 1
+
+    while current_url is not None:
+        bundle = await fetch_page(current_url, current_params)
+        next_link = get_next_bundle_link(bundle)
+
+        if current_page == page:
+            return {
+                "resources": extract_bundle_resources(bundle),
+                "has_next": next_link is not None,
+            }
+
+        current_url = urljoin(current_url, next_link) if next_link else None
+        current_params = None
+        current_page += 1
+
+    return {"resources": [], "has_next": False}

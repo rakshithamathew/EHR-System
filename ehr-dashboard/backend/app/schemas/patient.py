@@ -1,11 +1,26 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field
+
+
+class FHIRPatientResponse(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    name: str | None
+    gender: str | None
+    birth_date: date | None = Field(alias="birthDate")
+
+
+class PatientPageResponse(BaseModel):
+    items: list[FHIRPatientResponse]
+    page: int
+    has_next: bool
 
 
 class PatientSummaryResponse(BaseModel):
-    id: UUID
+    id: UUID | str
     source: str
     external_id: str
     name: str | None
@@ -16,7 +31,7 @@ class PatientSummaryResponse(BaseModel):
 
 
 class ConditionResponse(BaseModel):
-    id: UUID
+    id: UUID | str
     external_id: str
     clinical_status: str | None
     verification_status: str | None
@@ -27,7 +42,7 @@ class ConditionResponse(BaseModel):
 
 
 class MedicationResponse(BaseModel):
-    id: UUID
+    id: UUID | str
     external_id: str
     status: str | None
     medication_code: str | None

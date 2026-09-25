@@ -4,7 +4,7 @@ import httpx
 
 from app.connectors.base import FHIRConnector
 from app.core.config import settings
-from app.utils.fhir import FHIRResource
+from app.utils.fhir import FHIRPage, FHIRResource
 
 
 class HAPIConnector(FHIRConnector):
@@ -14,8 +14,8 @@ class HAPIConnector(FHIRConnector):
         self,
         base_url: str | None = None,
         *,
-        patient_id: str | None = None,
         timeout: float | httpx.Timeout = 30.0,
+        max_attempts: int = 4,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         configured_base_url = base_url or settings.hapi_fhir_base_url
@@ -25,30 +25,34 @@ class HAPIConnector(FHIRConnector):
         super().__init__(
             base_url=configured_base_url,
             timeout=timeout,
+            max_attempts=max_attempts,
             client=client,
         )
-        configured_patient_id = (
-            patient_id if patient_id is not None else settings.hapi_patient_id
-        )
-        self.patient_id = (
-            configured_patient_id.strip() if configured_patient_id else None
+
+    async def get_patient(self, patient_external_id: str) -> FHIRResource:
+        return await self._get(
+            f"Patient/{quote(patient_external_id, safe='')}"
         )
 
     async def get_patients(self) -> list[FHIRResource]:
-        if self.patient_id:
-            patient = await self._get(
-                f"Patient/{quote(self.patient_id, safe='')}"
-            )
-            if not patient:
-                return []
-            if patient.get("resourceType") != "Patient":
-                raise ValueError("HAPI patient endpoint did not return a Patient")
-            return [patient]
-
         return await self._get_paginated(
             "Patient",
             params={"_count": 20},
         )
+
+    async def get_patient_page(
+        self,
+        *,
+        page: int,
+        count: int,
+        search: str | None = None,
+    ) -> FHIRPage:
+        """Fetch a Patient page by following HAPI's Bundle next links."""
+
+        params: dict[str, str | int] = {"_count": count}
+        if search:
+            params["name"] = search
+        return await self._get_page("Patient", page=page, params=params)
 
     async def get_conditions(
         self,

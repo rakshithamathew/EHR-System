@@ -20,6 +20,9 @@ export function PatientList({ patients }: PatientListProps) {
               Name
             </th>
             <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Patient ID
+            </th>
+            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
               DOB
             </th>
             <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">

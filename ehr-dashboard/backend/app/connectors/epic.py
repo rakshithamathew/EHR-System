@@ -1,22 +1,18 @@
-from typing import NoReturn
+from urllib.parse import quote
 
 import httpx
 
 from app.connectors.base import FHIRConnector
 from app.core.config import settings
-from app.utils.fhir import FHIRResource
+from app.utils.fhir import FHIRPage, FHIRResource
 
 
 class EpicConnectorError(RuntimeError):
     """Base error for unavailable Epic connector operations."""
 
 
-class EpicConfigurationError(EpicConnectorError):
-    """Raised when required Epic SMART on FHIR settings are missing."""
-
-
 class EpicAuthorizationRequiredError(EpicConnectorError):
-    """Raised until the Epic SMART on FHIR OAuth flow is implemented."""
+    """Raised when no active Epic SMART access token is available."""
 
 
 class EpicFHIRConnector(FHIRConnector):
@@ -30,6 +26,7 @@ class EpicFHIRConnector(FHIRConnector):
         redirect_uri: str | None = None,
         authorization_url: str | None = None,
         token_url: str | None = None,
+        access_token: str | None = None,
         timeout: float | httpx.Timeout = 30.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
@@ -40,52 +37,69 @@ class EpicFHIRConnector(FHIRConnector):
             authorization_url or settings.epic_authorization_url
         )
         self.epic_token_url = token_url or settings.epic_token_url
+        self.access_token = access_token
 
-        # Epic FHIR APIs require SMART on FHIR OAuth authorization before
-        # protected resources can be queried. The reserved URL is never called;
-        # it only lets this placeholder initialize before configuration exists.
+        if not self.epic_fhir_base_url:
+            raise ValueError("EPIC_FHIR_BASE_URL must be configured")
         super().__init__(
-            base_url=self.epic_fhir_base_url or "https://epic.invalid/fhir",
+            base_url=self.epic_fhir_base_url,
             timeout=timeout,
             client=client,
         )
 
-    def _require_oauth_authorization(self) -> NoReturn:
-        configuration = {
-            "EPIC_FHIR_BASE_URL": self.epic_fhir_base_url,
-            "EPIC_CLIENT_ID": self.epic_client_id,
-            "EPIC_REDIRECT_URI": self.epic_redirect_uri,
-            "EPIC_AUTHORIZATION_URL": self.epic_authorization_url,
-            "EPIC_TOKEN_URL": self.epic_token_url,
-        }
-        missing = [
-            name
-            for name, value in configuration.items()
-            if value is None or not value.strip()
-        ]
-
-        if missing:
-            raise EpicConfigurationError(
-                "Epic SMART on FHIR configuration is incomplete. Missing: "
-                + ", ".join(missing)
+    def _authorization_headers(self) -> dict[str, str]:
+        if not self.access_token:
+            raise EpicAuthorizationRequiredError(
+                "Connect Epic before loading its patient data"
             )
-
-        raise EpicAuthorizationRequiredError(
-            "Epic SMART on FHIR OAuth authorization is required before "
-            "protected FHIR APIs can be queried; OAuth is not implemented yet."
-        )
+        return {"Authorization": f"Bearer {self.access_token}"}
 
     async def get_patients(self) -> list[FHIRResource]:
-        self._require_oauth_authorization()
+        return await self._get_paginated(
+            "Patient",
+            params={"_count": 20},
+            headers=self._authorization_headers(),
+        )
+
+    async def get_patient(self, patient_external_id: str) -> FHIRResource:
+        return await self._get(
+            f"Patient/{quote(patient_external_id, safe='')}",
+            headers=self._authorization_headers(),
+        )
+
+    async def get_patient_page(
+        self,
+        *,
+        page: int,
+        count: int,
+        search: str | None = None,
+    ) -> FHIRPage:
+        params: dict[str, str | int] = {"_count": count}
+        if search:
+            params["name"] = search
+        return await self._get_page(
+            "Patient",
+            page=page,
+            params=params,
+            headers=self._authorization_headers(),
+        )
 
     async def get_conditions(
         self,
         patient_external_id: str,
     ) -> list[FHIRResource]:
-        self._require_oauth_authorization()
+        return await self._get_paginated(
+            "Condition",
+            params={"patient": patient_external_id, "_count": 50},
+            headers=self._authorization_headers(),
+        )
 
     async def get_medications(
         self,
         patient_external_id: str,
     ) -> list[FHIRResource]:
-        self._require_oauth_authorization()
+        return await self._get_paginated(
+            "MedicationRequest",
+            params={"patient": patient_external_id, "_count": 50},
+            headers=self._authorization_headers(),
+        )

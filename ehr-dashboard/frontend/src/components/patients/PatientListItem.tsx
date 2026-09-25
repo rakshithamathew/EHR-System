@@ -10,9 +10,10 @@ interface PatientListItemProps {
 export function PatientListItem({ patient }: PatientListItemProps) {
   const navigate = useNavigate();
   const patientName = patient.name || patient.external_id;
+  const patientUrl = `/patients/${encodeURIComponent(patient.id)}?source=${encodeURIComponent(patient.source)}`;
 
   function openPatient() {
-    navigate(`/patients/${patient.id}`);
+    navigate(patientUrl);
   }
 
   return (
@@ -22,12 +23,15 @@ export function PatientListItem({ patient }: PatientListItemProps) {
     >
       <td className="px-5 py-4 font-semibold text-slate-900 group-hover:text-teal-800">
         <Link
-          to={`/patients/${patient.id}`}
+          to={patientUrl}
           onClick={(event) => event.stopPropagation()}
           className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-teal-600 focus-visible:ring-offset-2"
         >
           {patientName}
         </Link>
+      </td>
+      <td className="max-w-64 truncate px-5 py-4 font-mono text-sm text-slate-600">
+        {patient.external_id}
       </td>
       <td className="whitespace-nowrap px-5 py-4">
         {formatDate(patient.birth_date)}

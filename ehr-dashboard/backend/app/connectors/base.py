@@ -8,8 +8,10 @@ import httpx
 from tenacity import AsyncRetrying, RetryCallState, retry_if_exception, stop_after_attempt
 
 from app.utils.fhir import (
+    FHIRPage,
     FHIRQueryParams,
     FHIRResource,
+    fetch_fhir_bundle_page,
     paginate_fhir_bundle,
 )
 
@@ -72,15 +74,19 @@ class FHIRConnector(ABC):
         base_url: str,
         *,
         timeout: float | httpx.Timeout = 30.0,
+        max_attempts: int = _MAX_ATTEMPTS,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         if not base_url.strip():
             raise ValueError("base_url must not be empty")
+        if max_attempts < 1 or max_attempts > _MAX_ATTEMPTS:
+            raise ValueError(f"max_attempts must be between 1 and {_MAX_ATTEMPTS}")
 
         self.base_url = base_url.rstrip("/")
         self.timeout = (
             timeout if isinstance(timeout, httpx.Timeout) else httpx.Timeout(timeout)
         )
+        self.max_attempts = max_attempts
         self._client = client
         self._owns_client = client is None
 
@@ -130,7 +136,7 @@ class FHIRConnector(ABC):
         async for attempt in AsyncRetrying(
             retry=retry_if_exception(_is_retryable_error),
             wait=_retry_wait,
-            stop=stop_after_attempt(_MAX_ATTEMPTS),
+            stop=stop_after_attempt(self.max_attempts),
             reraise=True,
         ):
             with attempt:
@@ -178,6 +184,43 @@ class FHIRConnector(ABC):
             fetch_page,
             params=params,
         )
+
+    async def _get_page(
+        self,
+        path: str,
+        *,
+        page: int,
+        params: FHIRQueryParams | None = None,
+        headers: Mapping[str, str] | None = None,
+    ) -> FHIRPage:
+        """Fetch one Bundle page by following provider-supplied next links."""
+
+        async def fetch_page(
+            url: str,
+            page_params: FHIRQueryParams | None,
+        ) -> FHIRResource:
+            return await self._get(url, params=page_params, headers=headers)
+
+        return await fetch_fhir_bundle_page(
+            self._build_url(path),
+            fetch_page,
+            page=page,
+            params=params,
+        )
+
+    @abstractmethod
+    async def get_patient(self, patient_external_id: str) -> FHIRResource:
+        """Return one raw Patient resource by provider logical ID."""
+
+    @abstractmethod
+    async def get_patient_page(
+        self,
+        *,
+        page: int,
+        count: int,
+        search: str | None = None,
+    ) -> FHIRPage:
+        """Return one Patient Bundle page and whether another page exists."""
 
     @abstractmethod
     async def get_patients(self) -> list[FHIRResource]:

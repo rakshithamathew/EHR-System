@@ -16,20 +16,23 @@ DATABASE_URL=postgresql+psycopg://user:password@localhost:5433/ehr_dashboard
 FRONTEND_URL=http://localhost:5173
 
 HAPI_FHIR_BASE_URL=https://your-hapi-r4-base-url
-HAPI_PATIENT_ID=4237
 ORACLE_FHIR_BASE_URL=https://your-oracle-r4-base-url
 
-EPIC_FHIR_BASE_URL=
+EPIC_FHIR_BASE_URL=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
 EPIC_CLIENT_ID=
-EPIC_REDIRECT_URI=
-EPIC_AUTHORIZATION_URL=
-EPIC_TOKEN_URL=
+EPIC_REDIRECT_URI=http://localhost:5173/callback
+EPIC_AUTHORIZATION_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize
+EPIC_TOKEN_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
 ```
 
-Epic values remain optional until SMART on FHIR OAuth support is implemented. Do not commit `.env` or production credentials.
-
-When `HAPI_PATIENT_ID` is set, synchronization reads that patient directly from
-`Patient/{id}`. Leave it empty to use the paginated HAPI Patient search.
+Register `http://localhost:5173/callback` as the exact redirect URI for the
+Epic non-production client. The frontend callback immediately forwards Epic's
+authorization response to the backend token-exchange route. Select **Epic** and choose
+**Connect Epic** to begin the standalone SMART authorization-code flow. The
+backend validates OAuth `state`, uses PKCE with `S256`, exchanges the code, and
+keeps the access token out of frontend JavaScript in a short-lived process-local
+session. Restarting the backend requires reconnecting Epic. Do not commit `.env`
+or production credentials.
 
 ## Local development
 

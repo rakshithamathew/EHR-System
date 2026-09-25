@@ -11,6 +11,12 @@ export interface PatientSummary {
 
 export interface Patient extends PatientSummary {}
 
+export interface PatientPage {
+  items: PatientSummary[];
+  page: number;
+  has_next: boolean;
+}
+
 export interface Condition {
   id: string;
   external_id: string;
