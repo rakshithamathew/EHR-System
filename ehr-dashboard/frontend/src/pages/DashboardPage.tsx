@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import type { OnChangeFn, SortingState } from "@tanstack/react-table";
 
 import { EmptyState } from "../components/common/EmptyState";
 import { ErrorState } from "../components/common/ErrorState";
@@ -18,12 +19,18 @@ export function DashboardPage() {
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [sorting, setSorting] = useState<SortingState>([
+    { id: "name", desc: false },
+  ]);
+  const activeSort = sorting[0] ?? { id: "name", desc: false };
   const ehrsQuery = useEhrs();
   const patientsQuery = usePatients(
     selectedEhr,
     debouncedSearch,
     PATIENTS_PER_PAGE,
     page,
+    activeSort.id,
+    activeSort.desc ? "desc" : "asc",
     true,
   );
   const syncMutation = useSyncEhr();
@@ -72,6 +79,13 @@ export function DashboardPage() {
     setSearch(value);
     setPage(1);
   }
+
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting((current) =>
+      typeof updater === "function" ? updater(current) : updater,
+    );
+    setPage(1);
+  };
 
   const syncResult =
     syncMutation.data?.source === selectedEhr ? syncMutation.data : null;
@@ -194,31 +208,15 @@ export function DashboardPage() {
               <ErrorState error={patientsQuery.error} />
             ) : (
               <>
-                <PatientList patients={patientsQuery.data.items} />
-                <nav
-                  className="mt-5 flex items-center justify-between gap-4 sm:justify-end"
-                  aria-label="Patient list pagination"
-                >
-                  <button
-                    type="button"
-                    onClick={() => setPage((current) => Math.max(1, current - 1))}
-                    disabled={page === 1}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                  >
-                    Previous
-                  </button>
-                  <span className="text-sm text-slate-500 sm:hidden">
-                    Page {page}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setPage((current) => current + 1)}
-                    disabled={!patientsQuery.data.has_next}
-                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-                  >
-                    Next
-                  </button>
-                </nav>
+                <PatientList
+                  patients={patientsQuery.data.items}
+                  sorting={sorting}
+                  onSortingChange={handleSortingChange}
+                  page={page}
+                  pageSize={PATIENTS_PER_PAGE}
+                  hasNextPage={patientsQuery.data.has_next}
+                  onPageChange={setPage}
+                />
               </>
             )}
           </section>

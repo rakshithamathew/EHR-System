@@ -32,6 +32,8 @@ export async function getPatients(
   search?: string,
   limit = 20,
   page = 1,
+  sortBy = "name",
+  sortOrder: "asc" | "desc" = "asc",
 ): Promise<PatientPage> {
   try {
     const response = await apiClient.get<PatientPage>("/api/patients", {
@@ -40,6 +42,8 @@ export async function getPatients(
         search: search?.trim() || undefined,
         limit,
         page,
+        sort_by: sortBy,
+        sort_order: sortOrder,
       },
     });
     return response.data;

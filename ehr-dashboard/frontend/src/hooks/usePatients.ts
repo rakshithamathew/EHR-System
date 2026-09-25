@@ -6,12 +6,21 @@ export const patientQueryKeys = {
   all: ["patients"] as const,
   bySource: (source: string) =>
     [...patientQueryKeys.all, "list", source] as const,
-  list: (source: string, search: string | undefined, limit: number, page: number) =>
+  list: (
+    source: string,
+    search: string | undefined,
+    limit: number,
+    page: number,
+    sortBy: string,
+    sortOrder: "asc" | "desc",
+  ) =>
     [
       ...patientQueryKeys.bySource(source),
       search ?? "",
       limit,
       page,
+      sortBy,
+      sortOrder,
     ] as const,
 };
 
@@ -20,13 +29,23 @@ export function usePatients(
   search?: string,
   limit = 20,
   page = 1,
+  sortBy = "name",
+  sortOrder: "asc" | "desc" = "asc",
   enabled = true,
 ) {
   const normalizedSearch = search?.trim() || undefined;
 
   return useQuery({
-    queryKey: patientQueryKeys.list(source, normalizedSearch, limit, page),
-    queryFn: () => getPatients(source, normalizedSearch, limit, page),
+    queryKey: patientQueryKeys.list(
+      source,
+      normalizedSearch,
+      limit,
+      page,
+      sortBy,
+      sortOrder,
+    ),
+    queryFn: () =>
+      getPatients(source, normalizedSearch, limit, page, sortBy, sortOrder),
     enabled: source.length > 0 && enabled,
     staleTime: 60_000,
     gcTime: 5 * 60_000,

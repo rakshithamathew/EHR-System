@@ -152,3 +152,42 @@ def test_clinical_resources_upsert_and_patient_counts(db_session: Session) -> No
     )
     assert len(rows) == 1
     assert rows[0][2:] == (1, 1)
+
+
+def test_patient_list_applies_server_side_sorting(db_session: Session) -> None:
+    hapi = add_source(db_session, "hapi", "HAPI FHIR")
+    repository = PatientRepository(db_session)
+    repository.upsert_patient(
+        hapi.id,
+        normalize_patient(
+            {
+                "resourceType": "Patient",
+                "id": "older",
+                "name": [{"text": "Older Patient"}],
+                "birthDate": "1970-01-01",
+            }
+        ),
+    )
+    repository.upsert_patient(
+        hapi.id,
+        normalize_patient(
+            {
+                "resourceType": "Patient",
+                "id": "younger",
+                "name": [{"text": "Younger Patient"}],
+                "birthDate": "2000-01-01",
+            }
+        ),
+    )
+    db_session.flush()
+
+    rows = repository.list_patients(
+        source_code="hapi",
+        search=None,
+        limit=20,
+        offset=0,
+        sort_by="birth_date",
+        sort_order="desc",
+    )
+
+    assert [patient.external_id for patient, *_ in rows] == ["younger", "older"]
