@@ -37,13 +37,16 @@ class OracleConnector(FHIRConnector):
         )
 
     async def get_patients(self) -> list[FHIRResource]:
-        return await self._get_paginated(
-            "Patient",
-            params={
-                "_count": 5,
-                "name": DEFAULT_ORACLE_PATIENT_SEARCH,
-            },
+        # The public sandbox can expose many pages for the shared SMART test
+        # patients. A dashboard sync is intentionally a small sample; following
+        # every next link makes the request run for minutes before anything is
+        # committed to the database.
+        page = await self.get_patient_page(
+            page=1,
+            count=5,
+            search=DEFAULT_ORACLE_PATIENT_SEARCH,
         )
+        return page["resources"]
 
     async def get_patient_page(
         self,

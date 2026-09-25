@@ -246,6 +246,45 @@ def test_oracle_patient_page_uses_public_sandbox_base_url() -> None:
     assert requests_seen[0].headers["Accept"] == "application/fhir+json"
 
 
+def test_oracle_sync_fetches_only_the_first_five_patient_records() -> None:
+    requests_seen: list[httpx.Request] = []
+
+    def handle_request(request: httpx.Request) -> httpx.Response:
+        requests_seen.append(request)
+        return httpx.Response(
+            200,
+            json={
+                "resourceType": "Bundle",
+                "entry": [
+                    {"resource": {"resourceType": "Patient", "id": "1"}},
+                ],
+                "link": [
+                    {
+                        "relation": "next",
+                        "url": "https://fhir-open.cerner.com/r4/example/Patient?page=2",
+                    }
+                ],
+            },
+            request=request,
+        )
+
+    async def sync_sample() -> list[FHIRResource]:
+        transport = httpx.MockTransport(handle_request)
+        async with httpx.AsyncClient(transport=transport) as client:
+            connector = OracleConnector(
+                base_url="https://fhir-open.cerner.com/r4/example",
+                client=client,
+            )
+            return await connector.get_patients()
+
+    patients = asyncio.run(sync_sample())
+
+    assert patients == [{"resourceType": "Patient", "id": "1"}]
+    assert len(requests_seen) == 1
+    assert requests_seen[0].url.params.get("_count") == "5"
+    assert requests_seen[0].url.params.get("name") == "smart"
+
+
 def test_epic_pkce_uses_s256_and_state_is_single_use() -> None:
     store = EpicOAuthStore()
 
