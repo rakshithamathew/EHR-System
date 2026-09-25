@@ -1,15 +1,14 @@
-from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.core.database import get_session_factory
-from app.models.ehr_source import EHRSource
+from app.repositories.sync_repository import SyncRepository
 
 
 def seed_ehr_sources(session: Session) -> None:
     """Create or refresh the configured EHR sources without duplicates."""
 
-    statement = insert(EHRSource).values(
+    SyncRepository(session).upsert_ehr_sources(
         [
             {
                 "code": "hapi",
@@ -28,14 +27,6 @@ def seed_ehr_sources(session: Session) -> None:
             },
         ]
     )
-    statement = statement.on_conflict_do_update(
-        constraint="uq_ehr_sources_code",
-        set_={
-            "name": statement.excluded.name,
-            "base_url": statement.excluded.base_url,
-        },
-    )
-    session.execute(statement)
 
 
 def seed_configured_ehr_sources() -> None:

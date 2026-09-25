@@ -2,6 +2,7 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select, update
+from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
 from app.models.ehr_source import EHRSource
@@ -17,6 +18,17 @@ class SyncRepository:
     def get_ehr_source_by_code(self, source_code: str) -> EHRSource | None:
         statement = select(EHRSource).where(EHRSource.code == source_code)
         return self.session.execute(statement).scalar_one_or_none()
+
+    def upsert_ehr_sources(self, sources: list[dict[str, str]]) -> None:
+        statement = insert(EHRSource).values(sources)
+        statement = statement.on_conflict_do_update(
+            constraint="uq_ehr_sources_code",
+            set_={
+                "name": statement.excluded.name,
+                "base_url": statement.excluded.base_url,
+            },
+        )
+        self.session.execute(statement)
 
     def list_ehr_sources_with_latest_sync(
         self,

@@ -12,10 +12,11 @@ FastAPI backend for synchronizing a small set of public FHIR R4 resources into P
 Copy `.env.example` to `.env` and provide values for the environment you are running:
 
 ```env
-DATABASE_URL=postgresql+psycopg://user:password@localhost:5432/ehr_dashboard
+DATABASE_URL=postgresql+psycopg://user:password@localhost:5433/ehr_dashboard
 FRONTEND_URL=http://localhost:5173
 
 HAPI_FHIR_BASE_URL=https://your-hapi-r4-base-url
+HAPI_PATIENT_ID=4237
 ORACLE_FHIR_BASE_URL=https://your-oracle-r4-base-url
 
 EPIC_FHIR_BASE_URL=
@@ -27,6 +28,9 @@ EPIC_TOKEN_URL=
 
 Epic values remain optional until SMART on FHIR OAuth support is implemented. Do not commit `.env` or production credentials.
 
+When `HAPI_PATIENT_ID` is set, synchronization reads that patient directly from
+`Patient/{id}`. Leave it empty to use the paginated HAPI Patient search.
+
 ## Local development
 
 Create and activate a virtual environment, then install dependencies:
@@ -35,7 +39,7 @@ Create and activate a virtual environment, then install dependencies:
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 ```
 
 On Windows PowerShell, activate it with:
@@ -63,6 +67,16 @@ python -m app.core.seed
 ```
 
 The local API is available at `http://localhost:8000`, with OpenAPI documentation at `http://localhost:8000/docs`.
+
+## Tests
+
+Run the focused backend test suite with:
+
+```bash
+pytest
+```
+
+The pagination and retry tests run without external services. The two repository tests require PostgreSQL through `TEST_DATABASE_URL` (or `DATABASE_URL`) and use a transaction-scoped temporary schema that is removed after each test.
 
 ## Vercel deployment
 

@@ -8,11 +8,19 @@ import { PatientList } from "../components/patients/PatientList";
 import { useEhrs, useSyncEhr } from "../hooks/useEhrs";
 import { usePatients } from "../hooks/usePatients";
 
+const PATIENTS_PER_PAGE = 20;
+
 export function DashboardPage() {
   const [selectedEhr, setSelectedEhr] = useState("");
   const [search, setSearch] = useState("");
+  const [offset, setOffset] = useState(0);
   const ehrsQuery = useEhrs();
-  const patientsQuery = usePatients(selectedEhr, search);
+  const patientsQuery = usePatients(
+    selectedEhr,
+    search,
+    PATIENTS_PER_PAGE,
+    offset,
+  );
   const syncMutation = useSyncEhr();
 
   useEffect(() => {
@@ -30,6 +38,7 @@ export function DashboardPage() {
     const defaultSource =
       ehrsQuery.data.find((ehr) => ehr.code === "hapi" && ehr.enabled) ??
       ehrsQuery.data.find((ehr) => ehr.enabled);
+    setOffset(0);
     setSelectedEhr(defaultSource?.code ?? "");
   }, [ehrsQuery.data, selectedEhr]);
 
@@ -39,18 +48,23 @@ export function DashboardPage() {
     }
 
     syncMutation.reset();
+    setOffset(0);
     setSelectedEhr(source);
+  }
+
+  function handleSearchChange(value: string) {
+    setSearch(value);
+    setOffset(0);
   }
 
   const syncResult =
     syncMutation.data?.source === selectedEhr ? syncMutation.data : null;
 
   return (
-    <main className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:px-8">
-      <header className="mb-8">
-        <p className="mb-2 text-sm font-medium text-blue-700">Clinical data browser</p>
-        <h1 className="text-3xl font-semibold tracking-tight text-slate-950">
-          EHR Patient Dashboard
+    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <header className="mb-7">
+        <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+          Patients
         </h1>
       </header>
 
@@ -62,39 +76,58 @@ export function DashboardPage() {
         <EmptyState message="No EHR sources are configured." />
       ) : (
         <>
-          <EhrSelector
-            ehrs={ehrsQuery.data}
-            value={selectedEhr}
-            onChange={handleSourceChange}
-          />
-
-          <div className="my-6 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => syncMutation.mutate(selectedEhr)}
-              disabled={!selectedEhr || syncMutation.isPending}
-              className="rounded-md bg-blue-700 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-blue-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300"
-            >
-              {syncMutation.isPending ? "Syncing data..." : "Sync Data"}
-            </button>
-
-            <label className="relative flex-1">
-              <span className="sr-only">Search patients</span>
-              <input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                disabled={!selectedEhr}
-                placeholder="Search patients..."
-                className="w-full rounded-md border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-blue-600 focus:ring-1 focus:ring-blue-600 disabled:bg-slate-100"
+          <section className="rounded-xl border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-5 py-5 sm:px-6">
+              <p className="mb-3 text-sm font-semibold text-slate-700">
+                EHR source
+              </p>
+              <EhrSelector
+                ehrs={ehrsQuery.data}
+                value={selectedEhr}
+                onChange={handleSourceChange}
               />
-            </label>
-          </div>
+            </div>
 
-          <div className="mb-6" aria-live="polite">
+            <div className="flex flex-col gap-3 px-5 py-5 sm:px-6 md:flex-row">
+              <label className="relative flex-1">
+                <span className="sr-only">Search patients by name</span>
+                <svg
+                  aria-hidden="true"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  className="pointer-events-none absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+                >
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="m20 20-4-4" />
+                </svg>
+                <input
+                  type="search"
+                  value={search}
+                  onChange={(event) => handleSearchChange(event.target.value)}
+                  disabled={!selectedEhr}
+                  placeholder="Search by patient name"
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-11 pr-3 text-base text-slate-900 outline-none placeholder:text-slate-400 focus:border-teal-600 focus:ring-2 focus:ring-teal-100 disabled:bg-slate-100"
+                />
+              </label>
+
+              <button
+                type="button"
+                onClick={() => syncMutation.mutate(selectedEhr)}
+                disabled={!selectedEhr || syncMutation.isPending}
+                aria-busy={syncMutation.isPending}
+                className="rounded-lg bg-teal-700 px-5 py-2.5 text-sm font-semibold text-white hover:bg-teal-800 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-300"
+              >
+                {syncMutation.isPending ? "Syncing data..." : "Sync Data"}
+              </button>
+            </div>
+          </section>
+
+          <div className="mt-4" aria-live="polite">
             {syncMutation.isError && <ErrorState error={syncMutation.error} />}
             {syncResult && (
-              <p className="rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
+              <p className="rounded-xl border border-teal-200 bg-teal-50 px-5 py-4 text-base text-teal-900">
                 Sync complete: {syncResult.patients_processed} patients, {" "}
                 {syncResult.conditions_processed} conditions, and {" "}
                 {syncResult.medications_processed} medications processed.
@@ -102,18 +135,17 @@ export function DashboardPage() {
             )}
           </div>
 
-          <section aria-labelledby="patient-list-heading">
-            <div className="mb-3 flex items-baseline justify-between gap-4">
+          <section className="mt-8" aria-labelledby="patient-list-heading">
+            <div className="mb-4 flex items-baseline justify-between gap-4">
               <h2
                 id="patient-list-heading"
-                className="text-lg font-semibold text-slate-900"
+                className="text-xl font-semibold text-slate-950"
               >
-                Patient list
+                Patient directory
               </h2>
               {patientsQuery.data && (
-                <span className="text-sm text-slate-500">
-                  {patientsQuery.data.length} {" "}
-                  {patientsQuery.data.length === 1 ? "patient" : "patients"}
+                <span className="hidden text-sm font-medium text-slate-500 sm:inline">
+                  Page {Math.floor(offset / PATIENTS_PER_PAGE) + 1}
                 </span>
               )}
             </div>
@@ -125,7 +157,39 @@ export function DashboardPage() {
             ) : patientsQuery.isError ? (
               <ErrorState error={patientsQuery.error} />
             ) : (
-              <PatientList patients={patientsQuery.data} />
+              <>
+                <PatientList patients={patientsQuery.data} />
+                <nav
+                  className="mt-5 flex items-center justify-between gap-4 sm:justify-end"
+                  aria-label="Patient list pagination"
+                >
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOffset((current) =>
+                        Math.max(0, current - PATIENTS_PER_PAGE),
+                      )
+                    }
+                    disabled={offset === 0}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-slate-500 sm:hidden">
+                    Page {Math.floor(offset / PATIENTS_PER_PAGE) + 1}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setOffset((current) => current + PATIENTS_PER_PAGE)
+                    }
+                    disabled={patientsQuery.data.length < PATIENTS_PER_PAGE}
+                    className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+                  >
+                    Next
+                  </button>
+                </nav>
+              </>
             )}
           </section>
         </>

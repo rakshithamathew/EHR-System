@@ -23,7 +23,7 @@ def list_patients(
     service: Annotated[PatientService, Depends(get_patient_service)],
     source: Annotated[str | None, Query()] = None,
     search: Annotated[str | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
     offset: Annotated[int, Query(ge=0)] = 0,
 ) -> list[PatientSummaryResponse]:
     return service.list_patients(

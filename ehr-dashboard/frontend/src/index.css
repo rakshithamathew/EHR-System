@@ -10,6 +10,11 @@
   }
 
   body {
-    @apply min-w-80 bg-slate-50 antialiased;
+    @apply min-w-80 bg-white antialiased;
+  }
+
+  button,
+  input {
+    font: inherit;
   }
 }

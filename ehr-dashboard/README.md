@@ -1,6 +1,6 @@
 # EHR/FHIR Dashboard
 
-Minimal full-stack foundation for an EHR/FHIR dashboard. The frontend and backend are intentionally separate. The backend currently exposes only a health endpoint; product UI, EHR APIs, authentication, and business logic remain unimplemented.
+Minimal full-stack EHR/FHIR dashboard with a React frontend and a layered FastAPI backend. The application synchronizes public FHIR patient, condition, and medication resources into PostgreSQL and keeps the frontend and backend independently deployable.
 
 ## Structure
 
@@ -23,7 +23,7 @@ npm install
 npm run dev
 ```
 
-The frontend environment exposes `VITE_API_BASE_URL` for the future API base URL.
+Set `VITE_API_BASE_URL` to the FastAPI backend origin.
 
 ## Backend
 
@@ -34,8 +34,9 @@ cd backend
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -r requirements.txt
+python -m pip install -r requirements-dev.txt
 cp .env.example .env
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 
@@ -51,11 +52,7 @@ Set `ORACLE_FHIR_BASE_URL` to the Oracle Health FHIR R4 endpoint.
 
 Epic settings are included as empty placeholders. Epic resource access remains disabled until SMART on FHIR OAuth authorization is implemented.
 
-```bash
-alembic upgrade head
-```
-
-The backend health check is available at `GET /api/health`.
+The backend health check is available at `GET /api/health`. Run the focused backend tests from `backend/` with `pytest`; PostgreSQL repository tests use `TEST_DATABASE_URL` when it is configured.
 
 ## Deployment
 

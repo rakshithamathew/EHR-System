@@ -12,17 +12,30 @@ export function PatientList({ patients }: PatientListProps) {
   }
 
   return (
-    <div className="overflow-hidden rounded-lg border border-slate-200 bg-white">
-      <div className="grid grid-cols-[minmax(0,1fr)_8rem_6rem] gap-4 border-b border-slate-200 bg-slate-50 px-4 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500 sm:grid-cols-[minmax(0,1fr)_10rem_8rem]">
-        <span>Name</span>
-        <span>DOB</span>
-        <span>Gender</span>
-      </div>
-      <ul className="divide-y divide-slate-200">
-        {patients.map((patient) => (
-          <PatientListItem key={patient.id} patient={patient} />
-        ))}
-      </ul>
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+      <table className="min-w-[720px] w-full border-collapse text-left">
+        <thead className="bg-slate-50">
+          <tr className="border-b border-slate-200">
+            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Name
+            </th>
+            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              DOB
+            </th>
+            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Gender
+            </th>
+            <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              EHR Source
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {patients.map((patient) => (
+            <PatientListItem key={patient.id} patient={patient} />
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
