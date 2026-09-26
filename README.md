@@ -11,8 +11,7 @@ and medications.
 ## How it works
 
 ```text
-React/Vercel -> FastAPI/Render -> HAPI, Oracle, or Epic FHIR
-                           `-> PostgreSQL
+React/Vercel -> FastAPI/Render -> HAPI, Oracle, or Epic FHIR`-> PostgreSQL
 ```
 
 The frontend is React and TypeScript. The backend is FastAPI, and PostgreSQL
@@ -86,17 +85,39 @@ To verify that repeated syncing does not create duplicate patients:
 python scripts/test_idempotency.py --source hapi
 ```
 
-## What I would change for a real hospital
+## System Design for a Real Hospital (25,000 Patients)
 
-For a hospital with 25,000 patients, I would move synchronization into
-background jobs instead of keeping an HTTP request open. I would also use
-incremental updates or FHIR Bulk Data where supported, batch database writes,
-and add resumable checkpoints so a failed sync can continue where it stopped.
+At this scale, I would avoid premature microservices. A modular API, separate
+sync workers, a managed queue, and PostgreSQL provide enough scale while keeping
+the system easier to operate and audit.
 
-Authentication tokens would move to an encrypted shared store with refresh-token
-support. A production system would also need monitoring, audit logs, role-based
-access, consent controls, stricter validation, terminology mapping, and
-HIPAA-compliant infrastructure.
+```text
+Clinician -> SSO/MFA -> API -> PostgreSQL
+                         ^
+EHRs -> Queue -> FHIR workers -> validation + patient matching
+                         |
+                         +-> encrypted raw FHIR archive + audit log
+```
+
+- **Reliable ingestion:** use `_since`, FHIR history, or Bulk Data where
+  available, plus a nightly reconciliation. Jobs are batched, idempotent,
+  checkpointed, retried with backoff, and moved to a dead-letter queue after
+  repeated failures.
+- **Clinical correctness:** preserve source, version, and timestamps; show data
+  freshness and incomplete-sync warnings. Use a Master Patient Index with human
+  review for uncertain matches—merging the wrong patients is more dangerous
+  than temporarily keeping duplicates.
+- **Balanced storage:** keep searchable fields in PostgreSQL and the original
+  encrypted FHIR payload for traceability. Add read replicas only when measured
+  load requires them, and avoid caching PHI without a clear need.
+- **HIPAA safeguards:** use vendors that sign BAAs, encrypt data in transit and
+  at rest, enforce least-privilege RBAC, MFA, consent rules, access reviews,
+  immutable audit logs, backups, retention policies, and tested incident and
+  disaster-recovery plans. Never put PHI in logs or non-production systems;
+  use de-identified test data.
+- **Key tradeoff:** synchronization is eventually consistent but resilient. The
+  dashboard shows provenance and freshness and is not treated as the clinical
+  system of record.
 
 One final note: these are shared public sandboxes, so records and totals can
 change between syncs. Epic also depends on an interactive sandbox login and an
