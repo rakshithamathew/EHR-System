@@ -6,7 +6,13 @@ import { ErrorState } from "../components/common/ErrorState";
 import { LoadingState } from "../components/common/LoadingState";
 import { EhrSelector } from "../components/ehr/EhrSelector";
 import { PatientList } from "../components/patients/PatientList";
-import { useEhrs, useSyncEhr } from "../hooks/useEhrs";
+import { getEpicLoginUrl } from "../api/ehr";
+import {
+  useDisconnectEpic,
+  useEhrs,
+  useEpicConnectionStatus,
+  useSyncEhr,
+} from "../hooks/useEhrs";
 import { usePatients } from "../hooks/usePatients";
 
 const DASHBOARD_SOURCES = new Set(["hapi", "oracle", "epic"]);
@@ -34,6 +40,8 @@ export function DashboardPage() {
     true,
   );
   const syncMutation = useSyncEhr();
+  const epicConnectionQuery = useEpicConnectionStatus(selectedEhr === "epic");
+  const disconnectEpicMutation = useDisconnectEpic();
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -71,6 +79,7 @@ export function DashboardPage() {
     }
 
     syncMutation.reset();
+    disconnectEpicMutation.reset();
     setPage(1);
     setSelectedEhr(source);
   }
@@ -166,8 +175,36 @@ export function DashboardPage() {
                 )}
                 {syncMutation.isPending ? "Syncing data..." : "Sync Data"}
               </button>
+
+              {selectedEhr === "epic" &&
+                !epicConnectionQuery.isPending &&
+                (epicConnectionQuery.data?.connected ? (
+                  <button
+                    type="button"
+                    onClick={() => disconnectEpicMutation.mutate()}
+                    disabled={disconnectEpicMutation.isPending}
+                    className="inline-flex min-w-24 items-center justify-center rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 disabled:cursor-not-allowed disabled:text-slate-400"
+                  >
+                    {disconnectEpicMutation.isPending
+                      ? "Disconnecting..."
+                      : "Disconnect Epic"}
+                  </button>
+                ) : (
+                  <a
+                    href={getEpicLoginUrl()}
+                    className="inline-flex min-w-24 items-center justify-center rounded-md border border-teal-700 bg-white px-3 py-1.5 text-xs font-semibold text-teal-800 hover:bg-teal-50"
+                  >
+                    Connect Epic
+                  </a>
+                ))}
             </div>
           </section>
+
+          {disconnectEpicMutation.isError && (
+            <div className="mt-1 shrink-0" aria-live="polite">
+              <ErrorState error={disconnectEpicMutation.error} />
+            </div>
+          )}
 
           {syncMutation.isError && (
             <div className="mt-1 shrink-0" aria-live="polite">

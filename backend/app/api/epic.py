@@ -3,7 +3,7 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request, status
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 
 from app.core.config import settings
 from app.services.epic_auth_service import EPIC_SESSION_COOKIE, epic_oauth_store
@@ -50,6 +50,27 @@ def _exact_setting(value: str | None, name: str, expected: str) -> str:
 async def epic_status(request: Request) -> dict[str, bool]:
     token = epic_oauth_store.get_token(request.cookies.get(EPIC_SESSION_COOKIE))
     return {"connected": token is not None}
+
+
+@router.post("/logout")
+async def epic_logout(request: Request) -> JSONResponse:
+    epic_oauth_store.revoke_token(request.cookies.get(EPIC_SESSION_COOKIE))
+    response = JSONResponse({"connected": False})
+    response.delete_cookie(
+        EPIC_SESSION_COOKIE,
+        path="/",
+        secure=bool(
+            settings.epic_redirect_uri
+            and settings.epic_redirect_uri.lower().startswith("https://")
+        ),
+        samesite=(
+            "none"
+            if settings.epic_redirect_uri
+            and settings.epic_redirect_uri.lower().startswith("https://")
+            else "lax"
+        ),
+    )
+    return response
 
 
 @router.get("/login")
@@ -180,12 +201,13 @@ async def epic_callback(
         f"{frontend_url}/dashboard?source=epic&epic=connected",
         status_code=302,
     )
+    is_secure_callback = redirect_uri.lower().startswith("https://")
     response.set_cookie(
         EPIC_SESSION_COOKIE,
         pending.session_id,
         httponly=True,
-        secure=redirect_uri.lower().startswith("https://"),
-        samesite="lax",
+        secure=is_secure_callback,
+        samesite="none" if is_secure_callback else "lax",
         max_age=expires_in_seconds,
         path="/",
     )

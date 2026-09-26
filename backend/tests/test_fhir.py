@@ -303,6 +303,21 @@ def test_epic_pkce_uses_s256_and_state_is_single_use() -> None:
     assert store.consume_authorization(state) is None
 
 
+def test_epic_token_can_be_revoked() -> None:
+    store = EpicOAuthStore()
+    store.save_token(
+        "session-id",
+        "access-token",
+        expires_in=300,
+        patient_id="patient-id",
+        scope="patient/Patient.read",
+    )
+
+    assert store.get_token("session-id") is not None
+    store.revoke_token("session-id")
+    assert store.get_token("session-id") is None
+
+
 def test_epic_patient_page_sends_bearer_token() -> None:
     requests_seen: list[httpx.Request] = []
 
@@ -379,7 +394,7 @@ def test_epic_login_redirect_contains_required_smart_parameters(monkeypatch) -> 
     monkeypatch.setattr(
         settings,
         "epic_client_id",
-        "3f340b6c-8ca4-46b0-a50a-55a7cbf60324",
+        "4abffc6a-407b-4a22-848d-41e66c093da3",
     )
     monkeypatch.setattr(
         settings,
@@ -392,7 +407,7 @@ def test_epic_login_redirect_contains_required_smart_parameters(monkeypatch) -> 
     query = parse_qs(redirect.query)
 
     assert query["response_type"] == ["code"]
-    assert query["client_id"] == ["3f340b6c-8ca4-46b0-a50a-55a7cbf60324"]
+    assert query["client_id"] == ["4abffc6a-407b-4a22-848d-41e66c093da3"]
     assert query["redirect_uri"] == ["https://ehr-system-tau.vercel.app/callback"]
     assert query["scope"] == [EPIC_SCOPES]
     assert query["aud"] == [EPIC_FHIR_AUDIENCE]
@@ -441,7 +456,7 @@ def test_epic_callback_exchanges_code_and_stores_token(monkeypatch) -> None:
     monkeypatch.setattr(
         settings,
         "epic_client_id",
-        "3f340b6c-8ca4-46b0-a50a-55a7cbf60324",
+        "4abffc6a-407b-4a22-848d-41e66c093da3",
     )
     monkeypatch.setattr(
         settings,
@@ -464,7 +479,7 @@ def test_epic_callback_exchanges_code_and_stores_token(monkeypatch) -> None:
         "grant_type": "authorization_code",
         "code": "authorization-code",
         "redirect_uri": "https://ehr-system-tau.vercel.app/callback",
-        "client_id": "3f340b6c-8ca4-46b0-a50a-55a7cbf60324",
+        "client_id": "4abffc6a-407b-4a22-848d-41e66c093da3",
         "code_verifier": verifier,
     }
     assert "client_secret" not in request_seen["data"]
@@ -473,3 +488,5 @@ def test_epic_callback_exchanges_code_and_stores_token(monkeypatch) -> None:
         "/dashboard?source=epic&epic=connected"
     )
     assert "epic_session=" in response.headers["set-cookie"]
+    assert "SameSite=none" in response.headers["set-cookie"]
+    assert "Secure" in response.headers["set-cookie"]

@@ -88,3 +88,8 @@ export async function getEpicConnectionStatus(): Promise<EpicConnectionStatus> {
   const response = await apiClient.get<EpicConnectionStatus>("/api/epic/status");
   return response.data;
 }
+
+export async function disconnectEpic(): Promise<EpicConnectionStatus> {
+  const response = await apiClient.post<EpicConnectionStatus>("/api/epic/logout");
+  return response.data;
+}

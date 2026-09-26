@@ -57,7 +57,7 @@ FRONTEND_URL=http://localhost:5173
 HAPI_FHIR_BASE_URL=https://hapi.fhir.org/baseR4
 ORACLE_FHIR_BASE_URL=https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d
 EPIC_FHIR_BASE_URL=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
-EPIC_CLIENT_ID=3f340b6c-8ca4-46b0-a50a-55a7cbf60324
+EPIC_CLIENT_ID=4abffc6a-407b-4a22-848d-41e66c093da3
 EPIC_REDIRECT_URI=http://localhost:5173/callback
 EPIC_AUTHORIZATION_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize
 EPIC_TOKEN_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
@@ -124,13 +124,10 @@ condition, and medication table counts remain identical.
 ## Known limitations
 
 - Epic requires interactive MyChart login; no unauthenticated Epic patient endpoint exists.
-- Epic app 61368 is already marked **Ready** and currently has no Incoming APIs
-  selected. Epic only permits adding callback URIs after an app reaches this
-  state, so a new editable sandbox app (or Epic support intervention) is needed
-  to enable `Patient.Read`, `Condition.Search`, and
-  `MedicationRequest.Search`. The production callback URI and SMART/PKCE code
-  are configured, but clinical-data authorization cannot complete until those
-  APIs are enabled.
+- Epic app 61371 is configured for sandbox testing with the required R4
+  Patient, Condition, and MedicationRequest APIs and both deployed and local
+  callback URIs. Epic authentication remains interactive and depends on the
+  availability of Epic's shared MyChart sandbox.
 - Each callback URI must match an Endpoint URI registered in Epic byte-for-byte.
 - The lightweight Epic token store is process-local and intended for this sandbox demo, not multi-instance production deployment.
 - Sync is on demand and runs inline with the API request.

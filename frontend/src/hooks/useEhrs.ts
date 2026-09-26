@@ -1,6 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getEhrs, getEpicConnectionStatus, syncEhr } from "../api/ehr";
+import {
+  disconnectEpic,
+  getEhrs,
+  getEpicConnectionStatus,
+  syncEhr,
+} from "../api/ehr";
 import { patientQueryKeys } from "./usePatients";
 
 export const ehrQueryKeys = {
@@ -47,5 +52,19 @@ export function useEpicConnectionStatus(enabled: boolean) {
     staleTime: 30_000,
     retry: false,
     refetchOnWindowFocus: false,
+  });
+}
+
+export function useDisconnectEpic() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: disconnectEpic,
+    onSuccess: (status) => {
+      queryClient.setQueryData(
+        [...ehrQueryKeys.all, "epic-status"],
+        status,
+      );
+    },
   });
 }

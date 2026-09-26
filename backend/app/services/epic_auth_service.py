@@ -83,6 +83,10 @@ class EpicOAuthStore:
             return None
         return token
 
+    def revoke_token(self, session_id: str | None) -> None:
+        if session_id:
+            self._tokens.pop(session_id, None)
+
     def _remove_expired(self) -> None:
         now = self._now()
         self._pending = {

@@ -19,7 +19,7 @@ HAPI_FHIR_BASE_URL=https://your-hapi-r4-base-url
 ORACLE_FHIR_BASE_URL=https://your-oracle-r4-base-url
 
 EPIC_FHIR_BASE_URL=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
-EPIC_CLIENT_ID=3f340b6c-8ca4-46b0-a50a-55a7cbf60324
+EPIC_CLIENT_ID=4abffc6a-407b-4a22-848d-41e66c093da3
 EPIC_REDIRECT_URI=http://localhost:5173/callback
 EPIC_AUTHORIZATION_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize
 EPIC_TOKEN_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
