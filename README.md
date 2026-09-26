@@ -124,7 +124,14 @@ condition, and medication table counts remain identical.
 ## Known limitations
 
 - Epic requires interactive MyChart login; no unauthenticated Epic patient endpoint exists.
-- Epic's registered callback must be exactly `http://localhost:5173/callback`; registering `https://localhost:5173/callback` causes `error=4` before login.
+- Epic app 61368 is already marked **Ready** and currently has no Incoming APIs
+  selected. Epic only permits adding callback URIs after an app reaches this
+  state, so a new editable sandbox app (or Epic support intervention) is needed
+  to enable `Patient.Read`, `Condition.Search`, and
+  `MedicationRequest.Search`. The production callback URI and SMART/PKCE code
+  are configured, but clinical-data authorization cannot complete until those
+  APIs are enabled.
+- Each callback URI must match an Endpoint URI registered in Epic byte-for-byte.
 - The lightweight Epic token store is process-local and intended for this sandbox demo, not multi-instance production deployment.
 - Sync is on demand and runs inline with the API request.
 - There is no scheduler, queue, or background worker.
