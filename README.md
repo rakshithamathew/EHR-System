@@ -91,13 +91,13 @@ At this scale, I would avoid premature microservices. A modular API, separate
 sync workers, a managed queue, and PostgreSQL provide enough scale while keeping
 the system easier to operate and audit.
 
-```text
+<!-- ```text
 Clinician -> SSO/MFA -> API -> PostgreSQL
                          ^
 EHRs -> Queue -> FHIR workers -> validation + patient matching
                          |
                          +-> encrypted raw FHIR archive + audit log
-```
+``` -->
 
 - **Reliable ingestion:** use `_since`, FHIR history, or Bulk Data where
   available, plus a nightly reconciliation. Jobs are batched, idempotent,
