@@ -1,14 +1,12 @@
 import { Link, useParams, useSearchParams } from "react-router-dom";
 
-import { EmptyState } from "../components/common/EmptyState";
-import { ErrorState } from "../components/common/ErrorState";
-import { LoadingState } from "../components/common/LoadingState";
-import { usePatient } from "../hooks/usePatient";
+import { EmptyState, ErrorState, LoadingState } from "../components/Status";
+import { usePatient } from "../api/patients";
 import {
   formatDate,
   formatEhrSource,
   getPatientSourceUrl,
-} from "../utils/format";
+} from "../api/format";
 
 function displayValue(value: string | null): string {
   return value || "Not recorded";

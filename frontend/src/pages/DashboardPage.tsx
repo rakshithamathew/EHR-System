@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import type { OnChangeFn, SortingState } from "@tanstack/react-table";
-
-import { EmptyState } from "../components/common/EmptyState";
-import { ErrorState } from "../components/common/ErrorState";
-import { LoadingState } from "../components/common/LoadingState";
-import { EhrSelector } from "../components/ehr/EhrSelector";
-import { PatientList } from "../components/patients/PatientList";
-import { getEpicLoginUrl } from "../api/ehr";
+import { EmptyState, ErrorState, LoadingState } from "../components/Status";
+import { EhrSelector } from "../components/EhrSelector";
+import { PatientList, type PatientSort } from "../components/PatientList";
 import {
+  getEpicLoginUrl,
   useDisconnectEpic,
   useEhrs,
   useEpicConnectionStatus,
   useSyncEhr,
-} from "../hooks/useEhrs";
-import { usePatients } from "../hooks/usePatients";
+} from "../api/ehr";
+import { usePatients } from "../api/patients";
 
 const DASHBOARD_SOURCES = new Set(["hapi", "oracle", "epic"]);
 
@@ -26,18 +22,15 @@ export function DashboardPage() {
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
-  const [sorting, setSorting] = useState<SortingState>([
-    { id: "name", desc: false },
-  ]);
-  const activeSort = sorting[0] ?? { id: "name", desc: false };
+  const [sort, setSort] = useState<PatientSort>({ id: "name", desc: false });
   const ehrsQuery = useEhrs();
   const patientsQuery = usePatients(
     selectedEhr,
     debouncedSearch,
     pageSize,
     page,
-    activeSort.id,
-    activeSort.desc ? "desc" : "asc",
+    sort.id,
+    sort.desc ? "desc" : "asc",
     true,
   );
   const syncMutation = useSyncEhr();
@@ -129,12 +122,10 @@ export function DashboardPage() {
     setPage(1);
   }
 
-  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
-    setSorting((current) =>
-      typeof updater === "function" ? updater(current) : updater,
-    );
+  function handleSort(nextSort: PatientSort) {
+    setSort(nextSort);
     setPage(1);
-  };
+  }
 
   function handlePageSizeChange(nextPageSize: number) {
     setPage(1);
@@ -296,8 +287,8 @@ export function DashboardPage() {
             ) : (
               <PatientList
                 patients={patientsQuery.data.items}
-                sorting={sorting}
-                onSortingChange={handleSortingChange}
+                sort={sort}
+                onSort={handleSort}
                 page={page}
                 pageSize={pageSize}
                 totalCount={patientsQuery.data.total}

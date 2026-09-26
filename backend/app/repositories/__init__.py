@@ -1,1 +1,0 @@
-"""PostgreSQL data-access repositories."""

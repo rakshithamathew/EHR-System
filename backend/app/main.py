@@ -4,15 +4,15 @@ from collections.abc import AsyncIterator
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.router import api_router
-from app.core.config import settings
-from app.core.seed import seed_configured_ehr_sources
+from app.database import get_session_factory, settings
+from app.routes import router, seed_sources
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     if settings.database_url:
-        seed_configured_ehr_sources()
+        with get_session_factory()() as session:
+            seed_sources(session)
     yield
 
 app = FastAPI(
@@ -33,4 +33,4 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(api_router)
+app.include_router(router)

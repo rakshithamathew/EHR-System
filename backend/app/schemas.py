@@ -4,7 +4,31 @@ from uuid import UUID
 from pydantic import BaseModel
 
 
-class PatientSummaryResponse(BaseModel):
+class LastSync(BaseModel):
+    status: str
+    started_at: datetime
+    completed_at: datetime | None
+    patients_processed: int
+    conditions_processed: int
+    medications_processed: int
+    error_message: str | None
+
+
+class SourceOut(BaseModel):
+    id: str
+    label: str
+    enabled: bool
+    last_sync: LastSync | None = None
+
+
+class SyncOut(BaseModel):
+    synced: int
+    patients: int
+    conditions: int
+    medications: int
+
+
+class PatientOut(BaseModel):
     id: UUID | str
     source: str
     external_id: str
@@ -18,15 +42,15 @@ class PatientSummaryResponse(BaseModel):
     last_synced_at: datetime | None = None
 
 
-class PatientPageResponse(BaseModel):
-    items: list[PatientSummaryResponse]
+class PatientPage(BaseModel):
+    items: list[PatientOut]
     page: int
     page_size: int
     total: int
     has_next: bool
 
 
-class ConditionResponse(BaseModel):
+class ConditionOut(BaseModel):
     id: UUID | str
     external_id: str
     clinical_status: str | None
@@ -37,7 +61,7 @@ class ConditionResponse(BaseModel):
     onset_date: date | None
 
 
-class MedicationResponse(BaseModel):
+class MedicationOut(BaseModel):
     id: UUID | str
     external_id: str
     status: str | None
@@ -46,7 +70,7 @@ class MedicationResponse(BaseModel):
     authored_on: datetime | None
 
 
-class PatientDetailsResponse(BaseModel):
-    patient: PatientSummaryResponse
-    conditions: list[ConditionResponse]
-    medications: list[MedicationResponse]
+class PatientDetails(BaseModel):
+    patient: PatientOut
+    conditions: list[ConditionOut]
+    medications: list[MedicationOut]

@@ -9,8 +9,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 import app.models  # noqa: F401
-from app.core.config import settings
-from app.core.database import Base
+from app.database import Base, settings
 
 
 @pytest.fixture
@@ -25,7 +24,7 @@ def db_session() -> Generator[Session, None, None]:
     if not database_url:
         pytest.skip("TEST_DATABASE_URL or DATABASE_URL is required")
     if not database_url.startswith("postgresql"):
-        pytest.skip("Patient repository tests require PostgreSQL")
+        pytest.skip("Persistence tests require PostgreSQL")
 
     engine = create_engine(database_url, poolclass=NullPool)
     try:

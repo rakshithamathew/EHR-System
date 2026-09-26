@@ -19,10 +19,20 @@ React/Vite <--> FastAPI -+--> Oracle Health R4 (public)
                        patients / conditions / medications / sync_runs
 ```
 
-Routes contain HTTP concerns, the sync service orchestrates each run, provider
-connectors own FHIR HTTP/pagination/retry behavior, and repositories own SQL and
-`ON CONFLICT DO UPDATE` upserts. Resources use source-scoped unique identities,
-so repeated syncs update rows instead of creating duplicates.
+The intentionally small backend keeps HTTP routes, synchronization, and direct
+SQL queries together in `app/routes.py`. Three provider modules contain only
+the EHR-specific FHIR and Epic OAuth behavior. PostgreSQL
+`ON CONFLICT DO UPDATE` upserts use source-scoped identities, so repeated syncs
+update rows instead of creating duplicates.
+
+```text
+backend/app/
+  main.py  database.py  models.py  schemas.py  routes.py
+  ehr/hapi.py  ehr/oracle.py  ehr/epic.py
+
+frontend/src/
+  components/  pages/  api/  types/  App.tsx  main.tsx
+```
 
 ## EHR authentication
 
@@ -91,6 +101,9 @@ npm install
 npm run dev
 ```
 
+`frontend/vercel.json` provides the SPA fallback needed for dashboard, patient,
+and Epic callback routes when the frontend is deployed to Vercel.
+
 Create `frontend/.env` containing
 `VITE_API_BASE_URL=http://localhost:8000`, then visit
 [http://localhost:5173](http://localhost:5173).
@@ -106,8 +119,8 @@ curl -X POST "http://localhost:8000/api/sync?source=epic" --cookie "epic_session
 Epic must first be connected in the browser through `/api/epic/login`. Bundle
 pagination follows provider-supplied `link[relation=next]` URLs. Temporary
 transport errors, HTTP 429, and HTTP 5xx responses use bounded exponential
-backoff, and `Retry-After` is honored. Connectors allow at most five requests
-per second.
+backoff, and `Retry-After` is honored. The shared FHIR client allows at most
+five requests per second.
 
 Run the focused tests and live HAPI idempotency check:
 
@@ -118,8 +131,11 @@ cd ..
 python scripts/test_idempotency.py
 ```
 
-The script runs HAPI sync twice and asserts that source-filtered patient,
-condition, and medication table counts remain identical.
+The script runs a source sync twice, verifies that the patient count remains
+stable, and checks that patients, conditions, and medications contain no
+duplicate source-scoped FHIR identities. Clinical-resource totals may change
+between runs when a shared public sandbox changes or a later request returns
+additional data.
 
 ## Known limitations
 

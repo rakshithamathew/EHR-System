@@ -1,3 +1,28 @@
+export interface LastSync {
+  status: string;
+  started_at: string;
+  completed_at: string | null;
+  patients_processed: number;
+  conditions_processed: number;
+  medications_processed: number;
+  error_message: string | null;
+}
+
+export interface EhrSource {
+  code: string;
+  name: string;
+  enabled: boolean;
+  last_sync: LastSync | null;
+}
+
+export interface SyncResult {
+  source: string;
+  status: string;
+  patients_processed: number;
+  conditions_processed: number;
+  medications_processed: number;
+}
+
 export interface PatientSummary {
   id: string;
   source: string;
@@ -11,8 +36,6 @@ export interface PatientSummary {
   medication_count: number;
   last_synced_at: string | null;
 }
-
-export interface Patient extends PatientSummary {}
 
 export interface PatientPage {
   items: PatientSummary[];
@@ -43,7 +66,7 @@ export interface Medication {
 }
 
 export interface PatientDetails {
-  patient: Patient;
+  patient: PatientSummary;
   conditions: Condition[];
   medications: Medication[];
 }
