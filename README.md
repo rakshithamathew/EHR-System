@@ -126,10 +126,10 @@ EHRs -> Queue -> FHIR workers -> validation + patient matching
   worker processes stateless so they can scale horizontally behind a health-aware
   load balancer. The queue distributes sync work and provides backpressure when
   an EHR slows down.
-- **Network security:** use TLS 1.2+ externally, private subnets for databases and
+<!-- - **Network security:** use TLS 1.2+ externally, private subnets for databases and
   workers, strict security groups, private endpoints or VPN links to hospital
   networks, and mTLS for sensitive service-to-service traffic. Secrets stay in a
-  managed vault and neither databases nor internal services are public.
+  managed vault and neither databases nor internal services are public. -->
 - **HIPAA safeguards:** use vendors that sign BAAs, encrypt data in transit and
   at rest, enforce least-privilege RBAC, MFA, consent rules, access reviews,
   immutable audit logs, backups, retention policies, and tested incident and
