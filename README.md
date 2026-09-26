@@ -110,6 +110,26 @@ EHRs -> Queue -> FHIR workers -> validation + patient matching
 - **Balanced storage:** keep searchable fields in PostgreSQL and the original
   encrypted FHIR payload for traceability. Add read replicas only when measured
   load requires them, and avoid caching PHI without a clear need.
+- **Database scaling:** 25,000 patients do not require sharding. Start with a
+  managed PostgreSQL primary, vertical scaling, connection pooling, good indexes,
+  and batch writes. Add read replicas for dashboard traffic and partition large
+  clinical/audit tables by date only when measurements justify it.
+- **Field management:** keep frequently queried FHIR fields normalized and
+  indexed, retain raw JSONB for traceability, and record source, version, and
+  timestamps. Encrypt sensitive fields, validate schema changes through
+  migrations, and apply retention rules instead of keeping PHI forever.
+- **Gateway and rate limits:** place an API gateway and WAF in front of the API
+  for authentication, request limits, payload limits, and audit correlation.
+  Apply per-user inbound limits and separate token-bucket limits per EHR vendor
+  so one integration cannot exhaust another vendor's quota.
+- **Application scaling:** scale the database vertically first, but keep API and
+  worker processes stateless so they can scale horizontally behind a health-aware
+  load balancer. The queue distributes sync work and provides backpressure when
+  an EHR slows down.
+- **Network security:** use TLS 1.2+ externally, private subnets for databases and
+  workers, strict security groups, private endpoints or VPN links to hospital
+  networks, and mTLS for sensitive service-to-service traffic. Secrets stay in a
+  managed vault and neither databases nor internal services are public.
 - **HIPAA safeguards:** use vendors that sign BAAs, encrypt data in transit and
   at rest, enforce least-privilege RBAC, MFA, consent rules, access reviews,
   immutable audit logs, backups, retention policies, and tested incident and
