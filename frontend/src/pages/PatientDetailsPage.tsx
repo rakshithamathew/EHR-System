@@ -39,6 +39,11 @@ export function PatientDetailsPage() {
   const { patientId } = useParams<{ patientId: string }>();
   const [searchParams] = useSearchParams();
   const patientQuery = usePatient(patientId, searchParams.get("source") ?? undefined);
+  const selectedSource =
+    searchParams.get("source") ?? patientQuery.data?.patient.source ?? null;
+  const patientDirectoryUrl = selectedSource
+    ? `/dashboard?source=${encodeURIComponent(selectedSource)}`
+    : "/dashboard";
   const sourceUrl = patientQuery.data
     ? getPatientSourceUrl(
         patientQuery.data.patient.source,
@@ -50,7 +55,7 @@ export function PatientDetailsPage() {
     <main className="w-full p-[3px]">
       <Link
         className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
-        to="/"
+        to={patientDirectoryUrl}
       >
         <svg
           aria-hidden="true"

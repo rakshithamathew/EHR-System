@@ -74,6 +74,24 @@ export function DashboardPage() {
   }, [search]);
 
   useEffect(() => {
+    if (!selectedEhr) {
+      return;
+    }
+
+    const searchParams = new URLSearchParams(window.location.search);
+    if (searchParams.get("source") === selectedEhr) {
+      return;
+    }
+
+    searchParams.set("source", selectedEhr);
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}?${searchParams.toString()}${window.location.hash}`,
+    );
+  }, [selectedEhr]);
+
+  useEffect(() => {
     if (!ehrsQuery.data?.length) {
       return;
     }
