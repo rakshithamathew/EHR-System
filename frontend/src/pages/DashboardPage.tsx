@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { OnChangeFn, SortingState } from "@tanstack/react-table";
 
 import { EmptyState } from "../components/common/EmptyState";
@@ -18,6 +18,7 @@ import { usePatients } from "../hooks/usePatients";
 const DASHBOARD_SOURCES = new Set(["hapi", "oracle", "epic"]);
 
 export function DashboardPage() {
+  const handledEpicCallback = useRef(false);
   const [selectedEhr, setSelectedEhr] = useState(
     () => new URLSearchParams(window.location.search).get("source") ?? "",
   );
@@ -42,6 +43,27 @@ export function DashboardPage() {
   const syncMutation = useSyncEhr();
   const epicConnectionQuery = useEpicConnectionStatus(selectedEhr === "epic");
   const disconnectEpicMutation = useDisconnectEpic();
+
+  useEffect(() => {
+    const searchParams = new URLSearchParams(window.location.search);
+    if (
+      handledEpicCallback.current ||
+      selectedEhr !== "epic" ||
+      searchParams.get("epic") !== "connected"
+    ) {
+      return;
+    }
+
+    handledEpicCallback.current = true;
+    searchParams.delete("epic");
+    const nextSearch = searchParams.toString();
+    window.history.replaceState(
+      null,
+      "",
+      `${window.location.pathname}${nextSearch ? `?${nextSearch}` : ""}${window.location.hash}`,
+    );
+    syncMutation.mutate("epic");
+  }, [selectedEhr, syncMutation]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
