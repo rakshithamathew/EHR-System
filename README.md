@@ -30,10 +30,13 @@ cohort and retrieve the same patient, condition, and medication resources.
 
 ### Epic
 
-Epic uses SMART on FHIR rather than an open API. I implemented its OAuth
-authorization-code flow with PKCE. The backend validates the OAuth state,
-exchanges the authorization code, keeps the short-lived token server-side, and
-uses it as a Bearer token for FHIR requests.
+For Epic, I registered a non-production app in the Epic developer portal,
+configured the local and deployed callback URLs, and enabled the R4
+`Patient.Read (Demographics)`, `Condition.Search (Problems)`, and
+`MedicationRequest.Search (Signed Medication Order)` APIs. I then implemented
+the SMART on FHIR authorization-code flow with PKCE. The backend validates OAuth
+state, exchanges the code, keeps the short-lived token server-side, and uses it
+as a Bearer token for FHIR requests.
 
 For every provider, the sync follows the server's FHIR Bundle `next` links. It
 limits requests to five per second, retries temporary failures and rate limits,
