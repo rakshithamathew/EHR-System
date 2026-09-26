@@ -262,10 +262,21 @@ class SyncService:
                 seen_patient_ids: set[str] = set()
 
                 for raw_patient in raw_patients:
+                    if raw_patient.get("resourceType") != "Patient":
+                        logger.warning(
+                            "Skipping non-Patient resource in %s Patient bundle: %s",
+                            source.code,
+                            raw_patient.get("resourceType"),
+                        )
+                        continue
                     patient = normalize_patient(raw_patient)
                     external_id = patient["external_id"]
                     if external_id is None:
-                        raise ValueError("Patient resource is missing its external id")
+                        logger.warning(
+                            "Skipping Patient resource without an id from %s",
+                            source.code,
+                        )
+                        continue
                     if external_id in seen_patient_ids:
                         continue
                     seen_patient_ids.add(external_id)
@@ -302,12 +313,20 @@ class SyncService:
                     strict=True,
                 ):
                     for raw_condition in raw_conditions:
+                        if raw_condition.get("resourceType") != "Condition":
+                            logger.warning(
+                                "Skipping non-Condition resource in Condition bundle: %s",
+                                raw_condition.get("resourceType"),
+                            )
+                            continue
                         condition = normalize_condition(raw_condition)
                         condition_id = condition["external_id"]
                         if condition_id is None:
-                            raise ValueError(
-                                "Condition resource is missing its external id"
+                            logger.warning(
+                                "Skipping Condition resource without an id for patient %s",
+                                patient_id,
                             )
+                            continue
                         if condition_id in seen_condition_ids:
                             continue
                         seen_condition_ids.add(condition_id)
@@ -319,12 +338,20 @@ class SyncService:
                         conditions_processed += 1
 
                     for raw_medication in raw_medications:
+                        if raw_medication.get("resourceType") != "MedicationRequest":
+                            logger.warning(
+                                "Skipping non-MedicationRequest resource in medication bundle: %s",
+                                raw_medication.get("resourceType"),
+                            )
+                            continue
                         medication = normalize_medication_request(raw_medication)
                         medication_id = medication["external_id"]
                         if medication_id is None:
-                            raise ValueError(
-                                "MedicationRequest resource is missing its external id"
+                            logger.warning(
+                                "Skipping MedicationRequest resource without an id for patient %s",
+                                patient_id,
                             )
+                            continue
                         if medication_id in seen_medication_ids:
                             continue
                         seen_medication_ids.add(medication_id)
