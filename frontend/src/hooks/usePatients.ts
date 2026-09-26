@@ -27,7 +27,7 @@ export const patientQueryKeys = {
 export function usePatients(
   source: string,
   search?: string,
-  limit = 20,
+  limit = 10,
   page = 1,
   sortBy = "name",
   sortOrder: "asc" | "desc" = "asc",

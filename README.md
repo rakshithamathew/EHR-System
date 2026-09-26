@@ -36,7 +36,8 @@ so repeated syncs update rows instead of creating duplicates.
 
 1. `GET /api/epic/login` generates state and a PKCE verifier/challenge, stores the pending authorization server-side, and redirects to Epic.
 2. The user signs in to the MyChart sandbox using `fhircamila` / `epicepic1`.
-3. Epic redirects to `http://localhost:5173/callback?code=...&state=...`.
+3. Epic redirects to the registered frontend callback (`/callback`) with the
+   authorization code and state.
 4. The frontend forwards the callback query to `/api/epic/callback`; FastAPI validates state and exchanges the code at Epic's token endpoint.
 5. The access token and expiry are stored in the sandbox session and used as a Bearer token for Epic FHIR calls.
 
@@ -56,11 +57,20 @@ FRONTEND_URL=http://localhost:5173
 HAPI_FHIR_BASE_URL=https://hapi.fhir.org/baseR4
 ORACLE_FHIR_BASE_URL=https://fhir-open.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d
 EPIC_FHIR_BASE_URL=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
-EPIC_CLIENT_ID=6b14ff08-2522-41fa-9c83-0b395a36add4
+EPIC_CLIENT_ID=3f340b6c-8ca4-46b0-a50a-55a7cbf60324
 EPIC_REDIRECT_URI=http://localhost:5173/callback
 EPIC_AUTHORIZATION_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize
 EPIC_TOKEN_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
 ```
+
+The deployed Render service uses
+`EPIC_REDIRECT_URI=https://ehr-system-tau.vercel.app/callback`. Both the local
+and deployed callback URIs must be registered on the Epic non-production app.
+The Epic app must enable the R4 `Patient.Read (Demographics)`,
+`Condition.Search (Problems)`, and
+`MedicationRequest.Search (Signed Medication Order)` incoming APIs. The SMART
+request uses `launch/patient` plus patient-level read scopes for those three
+resource types.
 
 Start the backend:
 
@@ -77,13 +87,13 @@ Start the frontend in a second terminal:
 
 ```bash
 cd frontend
-cp .env.example .env
 npm install
 npm run dev
 ```
 
-Visit [http://localhost:5173](http://localhost:5173). Set
-`VITE_API_BASE_URL=http://localhost:8000` in `frontend/.env`.
+Create `frontend/.env` containing
+`VITE_API_BASE_URL=http://localhost:8000`, then visit
+[http://localhost:5173](http://localhost:5173).
 
 ## Synchronization
 

@@ -27,7 +27,7 @@ function DetailField({ label, value, capitalize = false }: DetailFieldProps) {
         {label}
       </dt>
       <dd
-        className={`mt-1.5 break-words text-base font-medium text-slate-900 ${capitalize ? "capitalize" : ""}`}
+        className={`mt-1 break-words text-sm font-medium text-slate-900 ${capitalize ? "capitalize" : ""}`}
       >
         {value}
       </dd>
@@ -47,9 +47,9 @@ export function PatientDetailsPage() {
     : null;
 
   return (
-    <main className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+    <main className="w-full p-[3px]">
       <Link
-        className="inline-flex items-center gap-2 text-sm font-semibold text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
+        className="inline-flex items-center gap-1.5 text-xs font-semibold text-teal-700 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
         to="/"
       >
         <svg
@@ -58,7 +58,7 @@ export function PatientDetailsPage() {
           fill="none"
           stroke="currentColor"
           strokeWidth="1.75"
-          className="h-4 w-4"
+          className="h-3.5 w-3.5"
         >
           <path d="m12.5 15-5-5 5-5" />
         </svg>
@@ -66,21 +66,21 @@ export function PatientDetailsPage() {
       </Link>
 
       {!patientId ? (
-        <div className="mt-6">
+        <div className="mt-3">
           <ErrorState error={new Error("A patient ID is required.")} />
         </div>
       ) : patientQuery.isPending ? (
-        <div className="mt-6">
+        <div className="mt-3">
           <LoadingState message="Loading patient..." />
         </div>
       ) : patientQuery.isError ? (
-        <div className="mt-6">
+        <div className="mt-3">
           <ErrorState error={patientQuery.error} />
         </div>
       ) : (
         <>
-          <header className="mt-7 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200 pb-6">
-            <h1 className="text-2xl font-semibold tracking-tight text-slate-950 sm:text-3xl">
+          <header className="mt-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-3">
+            <h1 className="text-xl font-semibold tracking-tight text-slate-950">
               {patientQuery.data.patient.name ||
                 patientQuery.data.patient.external_id}
             </h1>
@@ -89,21 +89,21 @@ export function PatientDetailsPage() {
                 href={sourceUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-teal-700 hover:bg-slate-50 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-semibold text-teal-700 hover:bg-slate-50 hover:text-teal-900 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2"
               >
                 Open in source EHR
               </a>
             )}
           </header>
 
-          <section className="mt-8" aria-labelledby="patient-information-heading">
+          <section className="mt-4" aria-labelledby="patient-information-heading">
             <h2
               id="patient-information-heading"
-              className="text-xl font-semibold text-slate-950"
+              className="text-base font-semibold text-slate-950"
             >
               Patient Information
             </h2>
-            <dl className="mt-4 grid gap-6 rounded-xl border border-slate-200 border-l-4 border-l-teal-600 bg-white p-5 shadow-sm sm:grid-cols-2 sm:p-6 lg:grid-cols-4">
+            <dl className="mt-2 grid gap-3 rounded-lg border border-slate-200 border-l-4 border-l-teal-600 bg-white p-3 shadow-sm sm:grid-cols-2 lg:grid-cols-4">
               <DetailField
                 label="Name"
                 value={
@@ -127,28 +127,28 @@ export function PatientDetailsPage() {
             </dl>
           </section>
 
-          <section className="mt-10" aria-labelledby="conditions-heading">
-            <div className="mb-4 flex items-center gap-3">
+          <section className="mt-5" aria-labelledby="conditions-heading">
+            <div className="mb-2 flex items-center gap-2">
               <h2
                 id="conditions-heading"
-                className="text-xl font-semibold text-slate-950"
+                className="text-base font-semibold text-slate-950"
               >
                 Conditions
               </h2>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
                 {patientQuery.data.conditions.length}
               </span>
             </div>
             {patientQuery.data.conditions.length === 0 ? (
               <EmptyState message="No conditions found for this patient." />
             ) : (
-              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 {patientQuery.data.conditions.map((condition) => (
-                  <li key={condition.id} className="p-5 sm:p-6">
-                    <h3 className="text-lg font-semibold text-slate-950">
+                  <li key={condition.id} className="p-3">
+                    <h3 className="text-sm font-semibold text-slate-950">
                       {condition.display || "Unnamed condition"}
                     </h3>
-                    <dl className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    <dl className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                       <DetailField
                         label="Clinical status"
                         value={displayValue(condition.clinical_status)}
@@ -173,28 +173,28 @@ export function PatientDetailsPage() {
             )}
           </section>
 
-          <section className="mt-10" aria-labelledby="medications-heading">
-            <div className="mb-4 flex items-center gap-3">
+          <section className="mt-5" aria-labelledby="medications-heading">
+            <div className="mb-2 flex items-center gap-2">
               <h2
                 id="medications-heading"
-                className="text-xl font-semibold text-slate-950"
+                className="text-base font-semibold text-slate-950"
               >
                 Medications
               </h2>
-              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-600">
                 {patientQuery.data.medications.length}
               </span>
             </div>
             {patientQuery.data.medications.length === 0 ? (
               <EmptyState message="No medications found for this patient." />
             ) : (
-              <ul className="divide-y divide-slate-200 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+              <ul className="divide-y divide-slate-200 overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
                 {patientQuery.data.medications.map((medication) => (
-                  <li key={medication.id} className="p-5 sm:p-6">
-                    <h3 className="text-lg font-semibold text-slate-950">
+                  <li key={medication.id} className="p-3">
+                    <h3 className="text-sm font-semibold text-slate-950">
                       {medication.medication_display || "Unnamed medication"}
                     </h3>
-                    <dl className="mt-5 grid gap-5 sm:grid-cols-3">
+                    <dl className="mt-3 grid gap-3 sm:grid-cols-3">
                       <DetailField
                         label="Status"
                         value={displayValue(medication.status)}

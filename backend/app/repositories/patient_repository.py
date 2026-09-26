@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.orm import Session
 
@@ -66,6 +66,20 @@ class PatientRepository:
             execution_options={"populate_existing": True},
         )
         return result.scalar_one()
+
+    def delete_patients_not_in(
+        self,
+        ehr_source_id: int,
+        external_ids: set[str],
+    ) -> int:
+        """Remove source records that are absent from the latest sync snapshot."""
+
+        statement = delete(Patient).where(Patient.ehr_source_id == ehr_source_id)
+        if external_ids:
+            statement = statement.where(Patient.external_id.not_in(external_ids))
+
+        result = self.session.execute(statement)
+        return int(result.rowcount or 0)
 
     def upsert_condition(
         self,
@@ -227,6 +241,33 @@ class PatientRepository:
             .offset(offset)
         )
         return [tuple(row) for row in self.session.execute(statement).all()]
+
+    def count_patients(
+        self,
+        *,
+        source_code: str | None,
+        search: str | None,
+    ) -> int:
+        statement = select(func.count(Patient.id)).join(
+            EHRSource,
+            Patient.ehr_source_id == EHRSource.id,
+        )
+
+        if source_code:
+            statement = statement.where(EHRSource.code == source_code)
+
+        if search:
+            pattern = f"%{search}%"
+            statement = statement.where(
+                or_(
+                    Patient.external_id.ilike(pattern),
+                    Patient.name.ilike(pattern),
+                    Patient.given_name.ilike(pattern),
+                    Patient.family_name.ilike(pattern),
+                )
+            )
+
+        return int(self.session.scalar(statement) or 0)
 
     def get_patient_details(
         self,

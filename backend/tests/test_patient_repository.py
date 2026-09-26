@@ -6,6 +6,7 @@ from app.models.condition import Condition
 from app.models.medication import Medication
 from app.models.patient import Patient
 from app.repositories.patient_repository import PatientRepository
+from app.services.patient_service import PatientService
 from app.utils.fhir import (
     normalize_condition,
     normalize_medication_request,
@@ -87,6 +88,29 @@ def test_patient_identity_is_scoped_to_ehr_source(db_session: Session) -> None:
         hapi.id,
         oracle.id,
     }
+
+
+def test_sync_snapshot_removes_only_stale_patients_for_its_source(
+    db_session: Session,
+) -> None:
+    hapi = add_source(db_session, "hapi", "HAPI FHIR")
+    oracle = add_source(db_session, "oracle", "Oracle Health")
+    repository = PatientRepository(db_session)
+
+    repository.upsert_patient(hapi.id, normalize_patient(patient_resource("Current")))
+    stale = patient_resource("Stale")
+    stale["id"] = "stale"
+    repository.upsert_patient(hapi.id, normalize_patient(stale))
+    repository.upsert_patient(oracle.id, normalize_patient(stale))
+
+    assert repository.delete_patients_not_in(hapi.id, {"123"}) == 1
+    db_session.flush()
+
+    remaining = list(db_session.scalars(select(Patient).order_by(Patient.ehr_source_id)))
+    assert [(row.ehr_source_id, row.external_id) for row in remaining] == [
+        (hapi.id, "123"),
+        (oracle.id, "stale"),
+    ]
 
 
 def test_clinical_resources_upsert_and_patient_counts(db_session: Session) -> None:
@@ -191,3 +215,19 @@ def test_patient_list_applies_server_side_sorting(db_session: Session) -> None:
     )
 
     assert [patient.external_id for patient, *_ in rows] == ["younger", "older"]
+    assert repository.count_patients(source_code="hapi", search=None) == 2
+    assert repository.count_patients(source_code="hapi", search="Older") == 1
+    assert repository.count_patients(source_code="oracle", search=None) == 0
+
+    page = PatientService(repository).list_patient_page(
+        source="hapi",
+        search=None,
+        limit=1,
+        page=1,
+        sort_by="birth_date",
+        sort_order="desc",
+    )
+    assert page.total == 2
+    assert page.page_size == 1
+    assert page.has_next is True
+    assert [patient.external_id for patient in page.items] == ["younger"]

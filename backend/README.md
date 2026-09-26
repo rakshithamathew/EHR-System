@@ -19,14 +19,16 @@ HAPI_FHIR_BASE_URL=https://your-hapi-r4-base-url
 ORACLE_FHIR_BASE_URL=https://your-oracle-r4-base-url
 
 EPIC_FHIR_BASE_URL=https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4
-EPIC_CLIENT_ID=
+EPIC_CLIENT_ID=3f340b6c-8ca4-46b0-a50a-55a7cbf60324
 EPIC_REDIRECT_URI=http://localhost:5173/callback
 EPIC_AUTHORIZATION_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize
 EPIC_TOKEN_URL=https://fhir.epic.com/interconnect-fhir-oauth/oauth2/token
 ```
 
-Register `http://localhost:5173/callback` as the exact redirect URI for the
-Epic non-production client. The frontend callback immediately forwards Epic's
+Register `http://localhost:5173/callback` for local development and
+`https://ehr-system-tau.vercel.app/callback` for the deployed frontend on the
+Epic non-production client. Configure `EPIC_REDIRECT_URI` with the exact URI
+used by that environment. The frontend callback immediately forwards Epic's
 authorization response to the backend token-exchange route. Select **Epic** and choose
 **Connect Epic** to begin the standalone SMART authorization-code flow. The
 backend validates OAuth `state`, uses PKCE with `S256`, exchanges the code, and
@@ -98,14 +100,16 @@ pytest
 
 The pagination and retry tests run without external services. The two repository tests require PostgreSQL through `TEST_DATABASE_URL` (or `DATABASE_URL`) and use a transaction-scoped temporary schema that is removed after each test.
 
-## Vercel deployment
+## Render deployment
 
-Create a Vercel project with this `backend` directory as its root. Add every production environment variable in the Vercel project settings, using a hosted PostgreSQL connection string for `DATABASE_URL`.
+Create a Render web service with `backend` as its root directory. Add every
+production environment variable in the Render service settings, using a hosted
+PostgreSQL connection string for `DATABASE_URL`.
 
-The `app` object exported by `app/main.py` is the deployment entrypoint. The minimal `vercel.json` selects Vercel's FastAPI framework; no build command, route rewrite, Dockerfile, or custom server command is required.
+Use these commands and health-check path:
 
-For a local Vercel-runtime check, install the Vercel CLI and run:
-
-```bash
-vercel dev
+```text
+Build: pip install -r requirements.txt
+Start: alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+Health check: /api/health
 ```

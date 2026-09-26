@@ -379,12 +379,12 @@ def test_epic_login_redirect_contains_required_smart_parameters(monkeypatch) -> 
     monkeypatch.setattr(
         settings,
         "epic_client_id",
-        "6b14ff08-2522-41fa-9c83-0b395a36add4",
+        "3f340b6c-8ca4-46b0-a50a-55a7cbf60324",
     )
     monkeypatch.setattr(
         settings,
         "epic_redirect_uri",
-        "http://localhost:5173/callback",
+        "https://ehr-system-tau.vercel.app/callback",
     )
 
     response = asyncio.run(epic_login())
@@ -392,8 +392,8 @@ def test_epic_login_redirect_contains_required_smart_parameters(monkeypatch) -> 
     query = parse_qs(redirect.query)
 
     assert query["response_type"] == ["code"]
-    assert query["client_id"] == ["6b14ff08-2522-41fa-9c83-0b395a36add4"]
-    assert query["redirect_uri"] == ["http://localhost:5173/callback"]
+    assert query["client_id"] == ["3f340b6c-8ca4-46b0-a50a-55a7cbf60324"]
+    assert query["redirect_uri"] == ["https://ehr-system-tau.vercel.app/callback"]
     assert query["scope"] == [EPIC_SCOPES]
     assert query["aud"] == [EPIC_FHIR_AUDIENCE]
     assert query["state"][0]
@@ -438,8 +438,16 @@ def test_epic_callback_exchanges_code_and_stores_token(monkeypatch) -> None:
     monkeypatch.setattr(epic_api, "epic_oauth_store", store)
     monkeypatch.setattr(epic_api.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(settings, "epic_token_url", epic_api.EPIC_TOKEN_URL)
-    monkeypatch.setattr(settings, "epic_client_id", epic_api.EPIC_CLIENT_ID)
-    monkeypatch.setattr(settings, "epic_redirect_uri", epic_api.EPIC_REDIRECT_URI)
+    monkeypatch.setattr(
+        settings,
+        "epic_client_id",
+        "3f340b6c-8ca4-46b0-a50a-55a7cbf60324",
+    )
+    monkeypatch.setattr(
+        settings,
+        "epic_redirect_uri",
+        "https://ehr-system-tau.vercel.app/callback",
+    )
     monkeypatch.setattr(settings, "frontend_url", "http://localhost:5173")
 
     response = asyncio.run(
@@ -455,8 +463,8 @@ def test_epic_callback_exchanges_code_and_stores_token(monkeypatch) -> None:
     assert request_seen["data"] == {
         "grant_type": "authorization_code",
         "code": "authorization-code",
-        "redirect_uri": epic_api.EPIC_REDIRECT_URI,
-        "client_id": epic_api.EPIC_CLIENT_ID,
+        "redirect_uri": "https://ehr-system-tau.vercel.app/callback",
+        "client_id": "3f340b6c-8ca4-46b0-a50a-55a7cbf60324",
         "code_verifier": verifier,
     }
     assert "client_secret" not in request_seen["data"]

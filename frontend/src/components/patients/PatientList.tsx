@@ -32,7 +32,7 @@ const patientColumns: ColumnDef<PatientSummary, any>[] = [
     accessorKey: "external_id",
     header: "Patient ID",
     cell: ({ getValue }) => (
-      <span className="block max-w-64 truncate font-mono text-sm text-slate-600">
+      <span className="block max-w-64 truncate font-mono text-xs text-slate-600">
         {String(getValue())}
       </span>
     ),
@@ -56,11 +56,11 @@ const patientColumns: ColumnDef<PatientSummary, any>[] = [
     header: "Clinical data",
     enableSorting: false,
     cell: ({ row }) => (
-      <div className="flex flex-wrap gap-2">
-        <span className="inline-flex rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-800 ring-1 ring-inset ring-blue-200">
+      <div className="flex flex-wrap gap-1">
+        <span className="inline-flex rounded-full bg-blue-50 px-2 py-0.5 text-[11px] font-semibold text-blue-800 ring-1 ring-inset ring-blue-200">
           {row.original.condition_count} conditions
         </span>
-        <span className="inline-flex rounded-full bg-cyan-50 px-2.5 py-1 text-xs font-semibold text-cyan-800 ring-1 ring-inset ring-cyan-200">
+        <span className="inline-flex rounded-full bg-cyan-50 px-2 py-0.5 text-[11px] font-semibold text-cyan-800 ring-1 ring-inset ring-cyan-200">
           {row.original.medication_count} medications
         </span>
       </div>
@@ -72,7 +72,7 @@ const patientColumns: ColumnDef<PatientSummary, any>[] = [
     enableSorting: false,
     cell: ({ row }) => (
       <span
-        className={`inline-flex rounded-full px-2.5 py-1 text-sm font-medium ring-1 ring-inset ${ehrSourceBadgeClasses(row.original.source)}`}
+        className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${ehrSourceBadgeClasses(row.original.source)}`}
       >
         {formatEhrSource(row.original.source)}
       </span>
@@ -106,8 +106,9 @@ interface PatientListProps {
   onSortingChange: OnChangeFn<SortingState>;
   page: number;
   pageSize: number;
-  hasNextPage: boolean;
+  totalCount: number;
   onPageChange: (page: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
 }
 
 export function PatientList({
@@ -116,8 +117,9 @@ export function PatientList({
   onSortingChange,
   page,
   pageSize,
-  hasNextPage,
+  totalCount,
   onPageChange,
+  onPageSizeChange,
 }: PatientListProps) {
   const navigate = useNavigate();
 
@@ -129,8 +131,9 @@ export function PatientList({
       onSortingChange={onSortingChange}
       pageIndex={page - 1}
       pageSize={pageSize}
-      hasNextPage={hasNextPage}
+      totalCount={totalCount}
       onPageChange={(pageIndex) => onPageChange(pageIndex + 1)}
+      onPageSizeChange={onPageSizeChange}
       getRowId={(patient) => patient.id}
       onRowClick={(patient) =>
         navigate(

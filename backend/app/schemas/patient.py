@@ -1,22 +1,7 @@
 from datetime import date, datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-
-class FHIRPatientResponse(BaseModel):
-    model_config = ConfigDict(populate_by_name=True)
-
-    id: str
-    name: str | None
-    gender: str | None
-    birth_date: date | None = Field(alias="birthDate")
-
-
-class FHIRPatientPageResponse(BaseModel):
-    items: list[FHIRPatientResponse]
-    page: int
-    has_next: bool
+from pydantic import BaseModel
 
 
 class PatientSummaryResponse(BaseModel):
@@ -36,6 +21,8 @@ class PatientSummaryResponse(BaseModel):
 class PatientPageResponse(BaseModel):
     items: list[PatientSummaryResponse]
     page: int
+    page_size: int
+    total: int
     has_next: bool
 
 

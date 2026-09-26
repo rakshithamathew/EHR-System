@@ -277,6 +277,14 @@ class SyncService:
                     persisted_patients.append((persisted_patient.id, external_id))
                     patients_processed += 1
 
+                # A sync is a snapshot for one source. Remove rows left behind by
+                # an earlier snapshot so a changing sandbox result cannot make the
+                # patient directory grow every time sync is run.
+                self.patient_repository.delete_patients_not_in(
+                    source.id,
+                    seen_patient_ids,
+                )
+
                 logger.info(
                     "Fetching Condition and MedicationRequest resources for %d patients",
                     len(persisted_patients),

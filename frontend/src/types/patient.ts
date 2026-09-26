@@ -17,6 +17,8 @@ export interface Patient extends PatientSummary {}
 export interface PatientPage {
   items: PatientSummary[];
   page: number;
+  page_size: number;
+  total: number;
   has_next: boolean;
 }
 

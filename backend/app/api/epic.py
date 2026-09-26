@@ -1,3 +1,4 @@
+import logging
 from urllib.parse import urlencode
 
 import httpx
@@ -8,14 +9,14 @@ from app.core.config import settings
 from app.services.epic_auth_service import EPIC_SESSION_COOKIE, epic_oauth_store
 
 router = APIRouter(prefix="/epic")
+logger = logging.getLogger(__name__)
 
 EPIC_SCOPES = (
+    "launch/patient "
     "patient/Patient.read "
     "patient/Condition.read "
     "patient/MedicationRequest.read"
 )
-EPIC_CLIENT_ID = "6b14ff08-2522-41fa-9c83-0b395a36add4"
-EPIC_REDIRECT_URI = "http://localhost:5173/callback"
 EPIC_AUTHORIZATION_URL = (
     "https://fhir.epic.com/interconnect-fhir-oauth/oauth2/authorize"
 )
@@ -57,17 +58,15 @@ async def epic_login() -> RedirectResponse:
         "EPIC_AUTHORIZATION_URL",
         EPIC_AUTHORIZATION_URL,
     )
-    client_id = _exact_setting(
+    client_id = _required_setting(
         settings.epic_client_id,
         "EPIC_CLIENT_ID",
-        EPIC_CLIENT_ID,
     )
-    redirect_uri = _exact_setting(
+    redirect_uri = _required_setting(
         settings.epic_redirect_uri,
         "EPIC_REDIRECT_URI",
-        EPIC_REDIRECT_URI,
     )
-    _exact_setting(
+    fhir_audience = _exact_setting(
         settings.epic_fhir_base_url,
         "EPIC_FHIR_BASE_URL",
         EPIC_FHIR_AUDIENCE,
@@ -83,11 +82,11 @@ async def epic_login() -> RedirectResponse:
             "state": state,
             "code_challenge": code_challenge,
             "code_challenge_method": "S256",
-            "aud": EPIC_FHIR_AUDIENCE,
+            "aud": fhir_audience,
         }
     )
     redirect_url = f"{authorization_url}?{query}"
-    print(f"Epic authorization URL: {redirect_url}", flush=True)
+    logger.info("Starting Epic SMART authorization")
     return RedirectResponse(redirect_url, status_code=302)
 
 
@@ -119,17 +118,15 @@ async def epic_callback(
         "EPIC_TOKEN_URL",
         EPIC_TOKEN_URL,
     )
-    client_id = _exact_setting(
+    client_id = _required_setting(
         settings.epic_client_id,
         "EPIC_CLIENT_ID",
-        EPIC_CLIENT_ID,
     )
-    redirect_uri = _exact_setting(
+    redirect_uri = _required_setting(
         settings.epic_redirect_uri,
         "EPIC_REDIRECT_URI",
-        EPIC_REDIRECT_URI,
     )
-    print("Epic token exchange started", flush=True)
+    logger.info("Epic token exchange started")
     try:
         async with httpx.AsyncClient(timeout=httpx.Timeout(20.0, connect=5.0)) as client:
             token_response = await client.post(
@@ -170,10 +167,11 @@ async def epic_callback(
         patient_id=payload.get("patient") if isinstance(payload.get("patient"), str) else None,
         scope=payload.get("scope") if isinstance(payload.get("scope"), str) else None,
     )
-    print(
+    logger.info(
         "Epic token exchange succeeded "
-        f"(expires_in={expires_in_seconds}, patient_context={bool(payload.get('patient'))})",
-        flush=True,
+        "(expires_in=%d, patient_context=%s)",
+        expires_in_seconds,
+        bool(payload.get("patient")),
     )
 
     frontend_url = _required_setting(settings.frontend_url, "FRONTEND_URL").rstrip("/")

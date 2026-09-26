@@ -44,7 +44,7 @@ def list_patients(
     source: Annotated[str, Query()],
     page: Annotated[int, Query(ge=1)] = 1,
     search: Annotated[str | None, Query()] = None,
-    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
     sort_by: Annotated[
         Literal["name", "external_id", "birth_date", "gender"],
         Query(),

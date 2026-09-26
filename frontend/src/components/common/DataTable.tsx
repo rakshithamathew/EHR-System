@@ -15,8 +15,9 @@ interface DataTableProps<TData> {
   onSortingChange: OnChangeFn<SortingState>;
   pageIndex: number;
   pageSize: number;
-  hasNextPage: boolean;
+  totalCount: number;
   onPageChange: (pageIndex: number) => void;
+  onPageSizeChange: (pageSize: number) => void;
   getRowId?: (row: TData) => string;
   onRowClick?: (row: TData) => void;
   emptyMessage?: string;
@@ -29,8 +30,9 @@ export function DataTable<TData>({
   onSortingChange,
   pageIndex,
   pageSize,
-  hasNextPage,
+  totalCount,
   onPageChange,
+  onPageSizeChange,
   getRowId,
   onRowClick,
   emptyMessage = "No records found.",
@@ -44,7 +46,7 @@ export function DataTable<TData>({
     getRowId,
     manualPagination: true,
     manualSorting: true,
-    pageCount: -1,
+    rowCount: totalCount,
     enableMultiSort: false,
     enableSortingRemoval: false,
     onSortingChange,
@@ -55,10 +57,10 @@ export function DataTable<TData>({
   });
 
   return (
-    <>
-      <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="min-h-0 flex-1 overflow-auto rounded-md border border-slate-200 bg-white shadow-sm">
         <table className="w-full min-w-[960px] border-collapse text-left">
-          <thead className="bg-slate-50">
+          <thead className="sticky top-0 z-10 bg-slate-50 shadow-[0_1px_0_0_rgb(226_232_240)]">
             {table.getHeaderGroups().map((headerGroup) => (
               <tr key={headerGroup.id} className="border-b border-slate-200">
                 {headerGroup.headers.map((header) => {
@@ -74,7 +76,7 @@ export function DataTable<TData>({
                             ? "descending"
                             : "none"
                       }
-                      className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-slate-500"
+                      className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500"
                     >
                       {header.isPlaceholder ? null : header.column.getCanSort() ? (
                         <button
@@ -107,7 +109,7 @@ export function DataTable<TData>({
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-5 py-12 text-center text-base text-slate-500"
+                  className="px-2 py-4 text-center text-sm text-slate-500"
                 >
                   {emptyMessage}
                 </td>
@@ -119,12 +121,12 @@ export function DataTable<TData>({
                   onClick={() => onRowClick?.(row.original)}
                   className={
                     onRowClick
-                      ? "group cursor-pointer text-base text-slate-600 hover:bg-teal-50/40"
-                      : "text-base text-slate-600"
+                      ? "group cursor-pointer text-sm text-slate-600 hover:bg-teal-50/40"
+                      : "text-sm text-slate-600"
                   }
                 >
                   {row.getVisibleCells().map((cell) => (
-                    <td key={cell.id} className="px-5 py-4">
+                    <td key={cell.id} className="px-2 py-2">
                       {flexRender(cell.column.columnDef.cell, cell.getContext())}
                     </td>
                   ))}
@@ -136,27 +138,55 @@ export function DataTable<TData>({
       </div>
 
       <nav
-        className="mt-5 flex items-center justify-between gap-4 sm:justify-end"
+        className="mt-1 flex shrink-0 flex-wrap items-center justify-between gap-1.5"
         aria-label="Table pagination"
       >
-        <button
-          type="button"
-          onClick={() => table.previousPage()}
-          disabled={pageIndex === 0}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-        >
-          Previous
-        </button>
-        <span className="text-sm text-slate-500">Page {pageIndex + 1}</span>
-        <button
-          type="button"
-          onClick={() => table.nextPage()}
-          disabled={!hasNextPage}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
-        >
-          Next
-        </button>
+        <span className="text-xs text-slate-500">
+          {totalCount === 0
+            ? "0 patients"
+            : `Showing ${pageIndex * pageSize + 1}-${Math.min(
+                (pageIndex + 1) * pageSize,
+                totalCount,
+              )} of ${totalCount} patients`}
+        </span>
+
+        <div className="flex items-center gap-1.5">
+          <label className="flex items-center gap-1.5 text-xs text-slate-600">
+            Rows per page
+            <select
+              value={pageSize}
+              onChange={(event) => onPageSizeChange(Number(event.target.value))}
+              className="rounded border border-slate-300 bg-white px-1.5 py-1 text-xs font-semibold text-slate-700 outline-none focus:border-teal-600 focus:ring-2 focus:ring-teal-100"
+              aria-label="Rows per page"
+            >
+              {[10, 20, 50].map((size) => (
+                <option key={size} value={size}>
+                  {size}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="button"
+            onClick={() => table.previousPage()}
+            disabled={!table.getCanPreviousPage()}
+            className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            Previous
+          </button>
+          <span className="whitespace-nowrap text-xs text-slate-500">
+            Page {pageIndex + 1} of {Math.max(table.getPageCount(), 1)}
+          </span>
+          <button
+            type="button"
+            onClick={() => table.nextPage()}
+            disabled={!table.getCanNextPage()}
+            className="rounded border border-slate-300 bg-white px-2.5 py-1 text-xs font-semibold text-slate-700 hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-400"
+          >
+            Next
+          </button>
+        </div>
       </nav>
-    </>
+    </div>
   );
 }

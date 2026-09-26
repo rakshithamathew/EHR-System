@@ -12,7 +12,7 @@ export function EhrSelector({ ehrs, value, onChange }: EhrSelectorProps) {
     <fieldset>
       <legend className="sr-only">Choose an EHR source</legend>
       <div
-        className="inline-flex max-w-full flex-wrap gap-1 rounded-lg border border-slate-200 bg-slate-50 p-1"
+        className="inline-flex max-w-full flex-wrap gap-0.5 rounded border border-slate-200 bg-slate-50 p-0.5"
         aria-label="EHR source"
       >
         {ehrs.map((ehr) => {
@@ -25,7 +25,7 @@ export function EhrSelector({ ehrs, value, onChange }: EhrSelectorProps) {
               onClick={() => onChange(ehr.code)}
               disabled={!ehr.enabled}
               aria-pressed={isSelected}
-              className={`rounded-md border px-4 py-2 text-left text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 ${
+              className={`rounded border px-2 py-1 text-left text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-teal-600 focus:ring-offset-2 ${
                 !ehr.enabled
                   ? "cursor-not-allowed border-transparent bg-transparent text-slate-400"
                   : isSelected
@@ -37,9 +37,9 @@ export function EhrSelector({ ehrs, value, onChange }: EhrSelectorProps) {
               {!ehr.enabled && (
                 <span className="ml-2 text-xs font-medium">Unavailable</span>
               )}
-              <span className="mt-0.5 block text-[11px] font-normal opacity-75">
+              {/* <span className="mt-0.5 block text-[11px] font-normal opacity-75">
                 Last synced: {formatDateTime(ehr.last_sync?.completed_at ?? null)}
-              </span>
+              </span> */}
             </button>
           );
         })}

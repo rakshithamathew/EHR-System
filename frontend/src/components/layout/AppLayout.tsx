@@ -2,21 +2,23 @@ import { Outlet } from "react-router-dom";
 
 export function AppLayout() {
   return (
-    <div className="min-h-screen bg-white text-slate-950">
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center gap-3 px-4 sm:px-6 lg:px-8">
+    <div className="flex h-dvh flex-col overflow-hidden bg-white text-slate-900  p-[15px]">
+      <header className="shrink-0 border-b border-slate-200 bg-white">
+        <div className="flex h-10 w-full items-center gap-2 px-3">
           <span
-            className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-700 text-xl font-semibold text-white"
+            className="flex h-7 w-7 items-center justify-center rounded-md bg-teal-700 text-base font-semibold text-white"
             aria-hidden="true"
           >
             +
           </span>
-          <span className="text-base font-semibold tracking-tight text-slate-900 sm:text-lg">
+          <span className="text-sm font-semibold tracking-tight text-slate-900">
             EHR Patient Dashboard
           </span>
         </div>
       </header>
-      <Outlet />
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <Outlet />
+      </div>
     </div>
   );
 }
