@@ -69,8 +69,8 @@ and deployed callback URIs must be registered on the Epic non-production app.
 The Epic app must enable the R4 `Patient.Read (Demographics)`,
 `Condition.Search (Problems)`, and
 `MedicationRequest.Search (Signed Medication Order)` incoming APIs. The SMART
-request uses `launch/patient` plus patient-level read scopes for those three
-resource types.
+request uses `openid`, `fhirUser`, and patient-level read scopes for those
+three resource types.
 
 Start the backend:
 

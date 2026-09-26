@@ -12,7 +12,8 @@ router = APIRouter(prefix="/epic")
 logger = logging.getLogger(__name__)
 
 EPIC_SCOPES = (
-    "launch/patient "
+    "openid "
+    "fhirUser "
     "patient/Patient.read "
     "patient/Condition.read "
     "patient/MedicationRequest.read"
